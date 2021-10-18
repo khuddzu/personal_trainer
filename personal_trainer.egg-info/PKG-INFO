@@ -1,0 +1,14 @@
+Metadata-Version: 1.1
+Name: personal-trainer
+Version: 0.0.1
+Summary: My personal training ANI engine for TORCHANI
+Home-page: UNKNOWN
+Author: Kate Huddleston
+Author-email: kdavis2@ufl.edu
+License: UNKNOWN
+Description: Based on ANIEngine, but more personal to the changes I need to make in my work. I also strictly used .py files that I wrote, which are personally easier for me to understand and modify.
+Keywords: python,torchani,torch
+Platform: UNKNOWN
+Classifier: Intended AUdience :: Beginner ANI users
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: Linux
