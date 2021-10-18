@@ -1,0 +1,3 @@
+[console_scripts]
+personal_trainer = personal_trainer.cli:main
+

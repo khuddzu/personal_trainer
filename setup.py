@@ -14,14 +14,13 @@ setup(
         description = DESCRIPTION, 
         long_description = LONG_DESCRIPTION, 
         packages = find_packages(), 
-        install_requires=[], 
+        install_requires=['tensorboard', 
+            'tqdm',],
+        entry_points={
+        'console_scripts': ['personal_trainer = personal_trainer.cli:main'],
+        }
 
-        keywords=['python', 'torchani', 'torch'], 
-        classifiers = [
-            "Intended AUdience :: Beginner ANI users", 
-            "Programming Language :: Python :: 3", 
-            "Operating System :: Linux"
-            ]
+
         )
 
 
