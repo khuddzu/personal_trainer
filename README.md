@@ -2,6 +2,6 @@
 
 To install:
 
-git clone "ssh url"
+<git clone git@github.com:khuddzu/personal_trainer.git>
 
-pip install -e. 
+<pip install -e .> 
