@@ -1,22 +1,23 @@
-from trainer import personal_trainer
+import personal_trainer
 import torch
 import torchani
-from nets import ANIModelAIM
+#from nets import ANIModelAIM
 import datetime
 import os
 
 now = datetime.datetime.now()
 
-#print(torchani.__file__)
-#print(torchani.__version__)
+print(torchani.__file__)
+print(torchani.__version__)
 
 #['H'. 'C'. 'N'. 'O', 'S', 'F', 'Cl']
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#print(f'... GPU allocated: {torch.cuda.get_device_name(0)}')
+print(f'... GPU allocated: {torch.cuda.get_device_name(0)}')
 
+# Training a network from scratch, like ANI-1x, at the wb97x/631g* level of theory. Training to energies and forces, using: GSAEs, biases off, GELU(), and MTLLoss. 
 pt = personal_trainer(device = device,
-            netlike1x = True,
+            netlike1x = True, 
             netlike2x = False,
             functional = 'wb97x',
             basis_set = '631gd',
