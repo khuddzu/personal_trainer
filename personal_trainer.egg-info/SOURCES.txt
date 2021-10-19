@@ -1,10 +1,8 @@
 README.md
 setup.py
-GSAE_example/__init__.py
-GSAE_example/editor.py
-GSAE_example/trainer.py
 personal_trainer/__init__.py
 personal_trainer/cli.py
+personal_trainer/evaluator.py
 personal_trainer/loss.py
 personal_trainer/protocol.py
 personal_trainer.egg-info/PKG-INFO

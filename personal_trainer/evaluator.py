@@ -112,11 +112,14 @@ class personal_evaluator:
             sys.path.append(self.wkdir)
             from model import ANIModelAIM
             nn = ANIModelAIM(modules, aev_computer)
+            checkpoint = torch.load(self.checkpoint)
+            nn.load_state_dict(checkpoint['model'],  strict=False)
+            model = torch.nn.Sequential(nn).to(device)
         else:
             nn = torchani.ANIModel(modules)
             checkpoint = torch.load(self.checkpoint)
-        nn.load_state_dict(checkpoint['model'],  strict=False)
-        model = torch.nn.Sequential(nn).to(self.device)
+            nn.load_state_dict(checkpoint['model'],  strict=False)
+            model = torchani.nn.Sequential(aev_computer, nn).to(self.device)
         return model
     
     def model_builder(self):
