@@ -50,4 +50,3 @@ pt = protocol.personal_trainer(device = device,
 pt.trainer()
 
 
-
