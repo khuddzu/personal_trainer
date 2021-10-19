@@ -5,12 +5,12 @@ from torchani.transforms import AtomicNumbersToIndices, SubtractSAE
 from typing import Tuple, NamedTuple, Optional, Sequence
 from torch.nn import Module
 from copy import deepcopy
-from models.nets import ANIModelAIM
+#from models.nets import ANIModelAIM
 import math
 import torch.utils.tensorboard
 import os
 import shutil
-from .loss import MTLLoss
+from loss import MTLLoss
 import tqdm
 import datetime
 
@@ -92,6 +92,7 @@ class personal_trainer:
         self.num_tasks = num_tasks
         self.train_file = train_file
 
+    
     def AEV_Computer(self):
         consts = torchani.neurochem.Constants(self.constants)
         aev_computer = torchani.AEVComputer(**consts)
@@ -210,6 +211,7 @@ class personal_trainer:
     def model_creator(self, aev_computer):
         modules = self.setup_nets(aev_computer.aev_length)
         if self.personal == True:
+            from models.nets import ANIModelAIM
             nn = ANIModelAIM(modules, aev_computer)
             nn.apply(self.init_params)
             model = nn.to(self.device)
@@ -217,7 +219,6 @@ class personal_trainer:
             nn = torchani.ANIModel(modules)
             nn.apply(self.init_params)
             model = torchani.nn.Sequential(aev_computer, nn).to(self.device)
-           # model = nn.to(self.device)
         return nn, model, modules
     
     def AdamWOpt_build(self, modules, weight_decay):
@@ -246,9 +247,9 @@ class personal_trainer:
         training_writer = torch.utils.tensorboard.SummaryWriter(log_dir=log + '/train')
         latest_checkpoint = '{}/latest.pt'.format(log)
         best_checkpoint = '{}/best.pt'.format(log)
-        shutil.copy(self.train_file, '{}/{}_{}_trainer.py'.format(log, str(date), self.projectlabel))
+        shutil.copy(self.train_file, '{}/trainer.py'.format(log, str(date), self.projectlabel))
         if self.personal == True:
-            shutil.copy('models/nets.py', '{}/{}_{}_model.py'.format(log, str(date), self.projectlabel))
+            shutil.copy('models/nets.py', '{}/model.py'.format(log, str(date), self.projectlabel))
         return training_writer, latest_checkpoint, best_checkpoint
 
     def save_model(self, nn, optimizer, energy_shifter, checkpoint):
