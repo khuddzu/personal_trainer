@@ -120,13 +120,13 @@ class personal_evaluator:
             checkpoint = torch.load(self.checkpoint)
             nn.load_state_dict(checkpoint['model'],  strict=False)
             model = torchani.nn.Sequential(aev_computer, nn).to(self.device)
-        return model
+        return model, nn
     
     def model_builder(self):
         aev_computer = self.AEV_Computer()
         energy_shifter = self.Energy_Shifter()
-        model = self.model_creator(aev_computer)
-        return aev_computer, energy_shifter, model
+        model, nn = self.model_creator(aev_computer)
+        return aev_computer, energy_shifter, model, nn
 """
     def ta_sp_benchmark(data_path):
     #dataset = torchani.data.load(data_path,additional_properties=('forces','wb97x_dz.hirshfeld_charges',))

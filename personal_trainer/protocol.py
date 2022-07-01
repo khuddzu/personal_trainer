@@ -5,12 +5,12 @@ from torchani.transforms import AtomicNumbersToIndices, SubtractSAE
 from typing import Tuple, NamedTuple, Optional, Sequence
 from torch.nn import Module
 from copy import deepcopy
-#from models.nets import ANIModelAIM
+from models.nets import ANIModelAIM
 import math
 import torch.utils.tensorboard
 import os
 import shutil
-from loss import MTLLoss
+from .loss import MTLLoss
 import tqdm
 import datetime
 
@@ -291,9 +291,13 @@ class personal_trainer:
                 true_forces = properties['forces'].to(self.device).float()
             if self.dipole == True:
                 true_dipoles = properties['dipoles'].to(self.device).float()
+            if self.charges == True:
+                initial_charges = properties['am1bcc_charges'].to(self.device).float()
             if self.personal == True:
                 if self.dipole == True:
                     _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, predicted_dipole = model((species, coordinates))
+                if self.charges == True:
+                    _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
                 else:
                     _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
             else:
@@ -310,6 +314,7 @@ class personal_trainer:
             if self.dipole == True:
                 total_dipole_mse += mse_sum(predicted_dipoles, true_dipoles).item()
             if self.charges == True:
+                #total_excess_mse += ms
                 total_excess_mse += mse_sum(excess_charge, torch.zeros_like(excess_charge)).item()
         energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
         valdict['energy_rmse']=energy_rmse
@@ -371,6 +376,9 @@ class personal_trainer:
                 if self.personal == True:
                     if self.dipole == True:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, predicted_dipole = model((species, coordinates))
+                    if self.charges == True:
+                        initial_charges = properties['am1bcc_charges'].to(self.device)
+                        _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
                     else:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
                 else:
