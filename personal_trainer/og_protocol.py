@@ -238,8 +238,9 @@ class personal_trainer:
         return AdamW
     
     def LR_Plat_scheduler(self, optimizer):
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, factor=self.factor, patience= self.patience, threshold=self.threshold)
+        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #optimizer, factor=self.factor, patience= self.patience, threshold=self.threshold)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2) 
         return scheduler
 
     def pt_setup(self):
@@ -296,11 +297,23 @@ class personal_trainer:
             coordinates = properties['coordinates'].to(self.device).float().requires_grad_(True)
             true_energies = properties['energies'].to(self.device).float()
             num_atoms = (species >= 0).sum(dim=1, dtype=true_energies.dtype)
+            if self.forces == True:
+                true_forces = properties['forces'].to(self.device).float()
+            if self.dipole == True:
+                true_dipoles = properties['dipoles'].to(self.device).float()
+            if self.charges == True:
+                initial_charges = properties['am1bcc_charges'].to(self.device).float()
             if self.typed_charges == True:
-                true_charges = properties['mbis_charges'].to(self.device).float()
+                true_charges = properties['atomic_charges_mbis'].to(self.device).float()
             if self.personal == True:
                 if self.typed_charges == True:
                     _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                if self.dipole == True:
+                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, predicted_dipole = model((species, coordinates))
+                if self.charges == True:
+                    _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
+                #else:
+                #    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
             else:
                 if self.dipole == True:
                     raise TypeError ('Published ANI does not currently support dipoles.')
@@ -309,6 +322,13 @@ class personal_trainer:
                 _, predicted_energies = model((species, coordinates))
             count += predicted_energies.shape[0]
             total_energy_mse += mse_sum(predicted_energies, true_energies).item()
+            if self.forces == True:
+                forces = -torch.autograd.grad(predicted_energies.sum(), coordinates)[0]
+                total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
+            if self.dipole == True:
+                total_dipole_mse += mse_sum(predicted_dipoles, true_dipoles).item()
+            if self.charges == True:
+                total_charge_mse += mse_sum(predicted_charges.sum(dim=1), init_charge.sum(dim=1)).item()
             if self.typed_charges == True:
                 type_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item() 
         energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
@@ -358,7 +378,7 @@ class personal_trainer:
                 for k, v in valrmse.items():
                     training_writer.add_scalar('best_{}'.format(k), v, LRscheduler.last_epoch)
                 best = valrmse['energy_rmse']
-            LRscheduler.step(valrmse['energy_rmse'])
+            LRscheduler.step()
             for i, properties in tqdm.tqdm(
                 enumerate(training),
                 total=len(training),
@@ -381,7 +401,7 @@ class personal_trainer:
                         initial_charges = properties['am1bcc_charges'].to(self.device)
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
                     if self.typed_charges == True:
-                        true_charges = properties['mbis_charges'].to(self.device)
+                        true_charges = properties['atomic_charges_mbis'].to(self.device)
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                     else:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
@@ -414,11 +434,7 @@ class personal_trainer:
                     loss = energy_loss
                     #loss = energy_loss + ((1)*total_charge_loss)
                 elif self.typed_charges ==True:
-                    print('EL:', energy_loss)
-                    print('QL:',(1/300)*charge_loss)
-                    
-                    loss = energy_loss + (1/300)*charge_loss
-                    print('Total:', loss)
+                    loss = energy_loss + charge_loss
                 else:
                     loss = energy_loss
                 ##BackProp##

@@ -17,6 +17,8 @@ class MTLLoss(torch.nn.Module):
 
     def forward(self, *loss_terms):
         assert len(loss_terms) == self.num_tasks
+        if len(loss_terms) == 1:
+            return loss_terms[0]
 
         total_loss = 0
         self.precisions = self.get_precisions()

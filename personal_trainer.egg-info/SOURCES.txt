@@ -4,6 +4,7 @@ personal_trainer/__init__.py
 personal_trainer/cli.py
 personal_trainer/evaluator.py
 personal_trainer/loss.py
+personal_trainer/model_import.py
 personal_trainer/protocol.py
 personal_trainer.egg-info/PKG-INFO
 personal_trainer.egg-info/SOURCES.txt

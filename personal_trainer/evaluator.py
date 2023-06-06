@@ -20,8 +20,8 @@ class personal_evaluator:
             gsae_dat: str = None,
             activation: Optional[Module] = None,
             bias: bool = False,
-            classifier_out: int = 1,
-            personal: bool = True):
+            classifier_out: int = 1, 
+            personal: bool = True): 
         if netlike1x == True:
             self.constants = '/data/khuddzu/torchani_sandbox/torchani/resources/ani-1x_8x/rHCNO-5.2R_16-3.5A_a4-8.params'
             self.elements = ['H', 'C', 'N', 'O']
@@ -43,7 +43,8 @@ class personal_evaluator:
         self.bias = bias
         self.classifier_out = classifier_out
         self.personal = personal
-    
+        #self.model = '{}/model.py'.format(wkdir)
+
     def AEV_Computer(self):
         consts = torchani.neurochem.Constants(self.constants)
         aev_computer = torchani.AEVComputer(**consts)
@@ -112,9 +113,10 @@ class personal_evaluator:
             sys.path.append(self.wkdir)
             from model import ANIModelAIM
             nn = ANIModelAIM(modules, aev_computer)
+            print(ANIModelAIM)
             checkpoint = torch.load(self.checkpoint)
             nn.load_state_dict(checkpoint['model'],  strict=False)
-            model = torch.nn.Sequential(nn).to(device)
+            model = torch.nn.Sequential(nn).to(self.device)
         else:
             nn = torchani.ANIModel(modules)
             checkpoint = torch.load(self.checkpoint)
@@ -127,6 +129,8 @@ class personal_evaluator:
         energy_shifter = self.Energy_Shifter()
         model, nn = self.model_creator(aev_computer)
         return aev_computer, energy_shifter, model, nn
+
+
 """
     def ta_sp_benchmark(data_path):
     #dataset = torchani.data.load(data_path,additional_properties=('forces','wb97x_dz.hirshfeld_charges',))

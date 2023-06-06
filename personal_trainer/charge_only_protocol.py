@@ -291,6 +291,7 @@ class personal_trainer:
             total_dipole_mse = 0.0
         if self.typed_charges == True:
             type_charge_mse = 0.0
+            total_excess_mse = 0.0
         for properties in validation:
             species = properties['species'].to(self.device)
             coordinates = properties['coordinates'].to(self.device).float().requires_grad_(True)
@@ -300,19 +301,20 @@ class personal_trainer:
                 true_charges = properties['mbis_charges'].to(self.device).float()
             if self.personal == True:
                 if self.typed_charges == True:
-                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                    _, predicted_charges, excess_charge, correction = model((species, coordinates))
             else:
                 if self.dipole == True:
                     raise TypeError ('Published ANI does not currently support dipoles.')
                 if self.charges == True:
                     raise TypeError ('Published ANI does not currently support charge prediction.')
                 _, predicted_energies = model((species, coordinates))
-            count += predicted_energies.shape[0]
-            total_energy_mse += mse_sum(predicted_energies, true_energies).item()
+            count += true_energies.shape[0]
+            #total_energy_mse += mse_sum(predicted_energies, true_energies).item()
             if self.typed_charges == True:
-                type_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item() 
-        energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
-        valdict['energy_rmse']=energy_rmse
+                #type_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
+                total_excess_mse += mse_sum(excess_charge, torch.zeros_like(excess_charge)).item()
+        #energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
+        #valdict['energy_rmse']=energy_rmse
         if self.forces == True:
             force_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_force_mse / count))
             valdict['force_rmse']=force_rmse
@@ -323,8 +325,10 @@ class personal_trainer:
             charge_rmse = math.sqrt(total_charge_mse / count)
             valdict['charge_rmse'] = charge_rmse
         if self.typed_charges == True: 
-            type_charge_rmse = math.sqrt(type_charge_mse / count)
-            valdict['typed_charge'] = type_charge_rmse
+            #type_charge_rmse = math.sqrt(type_charge_mse / count)
+            excess_charge_rmse = math.sqrt(total_excess_mse / count)
+            #valdict['typed_charge'] = type_charge_rmse
+            valdict['excess_charge'] = excess_charge_rmse
         return valdict
 
     def trainer(self):
@@ -351,14 +355,14 @@ class personal_trainer:
                 break
             
             #best checkpoint
-            if valrmse['energy_rmse'] < best: 
-            #if LRscheduler.is_better(valrmse['energy_rmse'], LRscheduler.best):
-                print('Saving the model, epoch={}, RMSE = {}'.format((LRscheduler.last_epoch + 1), valrmse['energy_rmse']))
+            #if valrmse['energy_rmse'] < best: 
+            if LRscheduler.is_better(valrmse['excess_charge'], LRscheduler.best):
+                print('Saving the model, epoch={}, RMSE = {}'.format((LRscheduler.last_epoch + 1), valrmse['excess_charge']))
                 self.save_model(nn, AdamW, energy_shifter, best_pt, LRscheduler)
                 for k, v in valrmse.items():
                     training_writer.add_scalar('best_{}'.format(k), v, LRscheduler.last_epoch)
-                best = valrmse['energy_rmse']
-            LRscheduler.step(valrmse['energy_rmse'])
+                best = valrmse['excess_charge']
+            LRscheduler.step(valrmse['excess_charge'])
             for i, properties in tqdm.tqdm(
                 enumerate(training),
                 total=len(training),
@@ -382,7 +386,7 @@ class personal_trainer:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
                     if self.typed_charges == True:
                         true_charges = properties['mbis_charges'].to(self.device)
-                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                        _, predicted_charges, excess_charge, correction = model((species, coordinates))
                     else:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
                 else:
@@ -394,7 +398,7 @@ class personal_trainer:
                 if self.forces == True:
                     forces = -torch.autograd.grad(predicted_energies.sum(), coordinates, create_graph=True, retain_graph=True)[0]
                 ##Get loss##
-                energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
+                #energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
                 if self.typed_charges == True: 
                     charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
                 if self.charges == True:
@@ -414,11 +418,8 @@ class personal_trainer:
                     loss = energy_loss
                     #loss = energy_loss + ((1)*total_charge_loss)
                 elif self.typed_charges ==True:
-                    print('EL:', energy_loss)
-                    print('QL:',(1/300)*charge_loss)
-                    
-                    loss = energy_loss + (1/300)*charge_loss
-                    print('Total:', loss)
+                    loss = charge_loss
+                    training_writer.add_scalar('charge_loss', loss, LRscheduler.last_epoch)
                 else:
                     loss = energy_loss
                 ##BackProp##
