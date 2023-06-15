@@ -5,12 +5,12 @@ from torchani.transforms import AtomicNumbersToIndices, SubtractSAE
 from typing import Tuple, NamedTuple, Optional, Sequence
 from torch.nn import Module
 from copy import deepcopy
-from models.nets import ANIModelAIM
+#from models.nets import ANIModelAIM
 import math
 import torch.utils.tensorboard
 import os
 import shutil
-from .loss import MTLLoss
+from loss import MTLLoss
 import tqdm
 import datetime
 
@@ -27,7 +27,6 @@ class personal_trainer:
             basis_set: str = '631gd',
             forces : bool=False, 
             charges : bool=False, 
-            typed_charges : bool=False,
             dipole : bool=False, 
             constants = None, 
             elements = None, 
@@ -69,7 +68,6 @@ class personal_trainer:
         self.basis_set = basis_set
         self.forces = forces
         self.charges = charges
-        self.typed_charges = typed_charges
         self.dipole = dipole
         self.gsae_dat = gsae_dat
         self.batch_size = batch_size
@@ -109,18 +107,10 @@ class personal_trainer:
         return energy_shifter
 
     def datasets_loading(self, energy_shifter):
-        # ds_path can either be a path or None
-        # if it is a path, it can either exist or not
-        # if it is None -> In memory
-        # if it is an existing path -> use it
-        # if it is a nonoe existing path -> create it, and then use it
-        in_memory = self.ds_path is None
-        transform = torchani.transforms.Compose([AtomicNumbersToIndices(self.elements), SubtractSAE(self.elements, energy_shifter)])
-        if in_memory:
+        if self.ds_path is None:
             learning_sets = torchani.datasets.create_batched_dataset(self.h5_path,
                                         include_properties=self.include_properties,
                                         batch_size=self.batch_size,
-                                        inplace_transform=transform,
                                         shuffle_seed=123456789,
                                         splits=self.data_split, direct_cache=True)
             training = torch.utils.data.DataLoader(learning_sets['training'],
@@ -132,18 +122,21 @@ class personal_trainer:
             validation= torch.utils.data.DataLoader(learning_sets['validation'],
                                                  shuffle=False,
                                                  num_workers=1,
-                                                 prefetch_factor=2, pin_memory=True, batch_size=None)
+                                                 prefetch_factor=2,
+                                                 pin_memory=True,
+                                                 batch_size=None)
         else:
             if not Path(self.ds_path).resolve().is_dir():
                 h5 = torchani.datasets.ANIDataset.from_dir(self.h5_path)
+                transform = torchani.transforms.Compose([AtomicNumbersToIndices(self.elements), SubtractSAE(self.elements, energy_shifter)])
                 torchani.datasets.create_batched_dataset(h5,
                                                  dest_path=self.ds_path,
                                                  batch_size=self.batch_size,
+                                                 inplace_transform=transform,
                                                  include_properties=self.include_properties,
                                                  splits = self.data_split) 
-            # This below loads the data if dspath exists
-            training = torchani.datasets.ANIBatchedDataset(self.ds_path, transform=transform, split='training')
-            validation = torchani.datasets.ANIBatchedDataset(self.ds_path, transform=transform, split='validation')
+            training = torchani.datasets.ANIBatchedDataset(self.ds_path, split='training')
+            validation = torchani.datasets.ANIBatchedDataset(self.ds_path, split='validation')
             training = torch.utils.data.DataLoader(training,
                                            shuffle=True,
                                            num_workers=1,
@@ -161,7 +154,7 @@ class personal_trainer:
     def standard(self, dims: Sequence[int]):
         r"""Makes a standard ANI style atomic network"""
         if self.activation is None:
-            activation = torch.nn.GELU()
+            activation = torch.nn.CELU(0.1)
         else:
             activation = self.activation
 
@@ -197,11 +190,11 @@ class personal_trainer:
 
     def setup_nets(self, aevsize):
         modules = []
-        if self.netlike1x:
+        if self.netlike1x == True:
             for a in self.elements:
                 network = self.like_1x(a, aev_dim = aevsize)
                 modules.append(network)
-        if self.netlike2x:
+        if self.netlike2x == True:
             for a in self.elements:
                 network = self.like_2x(a, aev_dim = aevsize)
                 modules.append(network)
@@ -210,9 +203,11 @@ class personal_trainer:
     def init_params(self, m):
         if isinstance(m, torch.nn.Linear):
             torch.nn.init.kaiming_normal_(m.weight, a=1.0)
-            if self.bias:
+            if self.bias  == False:
+                None
+            else:
                 torch.nn.init.zeros_(m.bias)
-    
+
     def model_creator(self, aev_computer):
         modules = self.setup_nets(aev_computer.aev_length)
         if self.personal == True:
@@ -238,14 +233,13 @@ class personal_trainer:
         return AdamW
     
     def LR_Plat_scheduler(self, optimizer):
-        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #optimizer, factor=self.factor, patience= self.patience, threshold=self.threshold)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2) 
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, factor=self.factor, patience= self.patience, threshold=self.threshold)
         return scheduler
 
     def pt_setup(self):
         date = self.now.strftime("%Y%m%d_%H%M")
-        log = '{}{}_{}'.format(self.logdir, date, self.projectlabel)
+        log = '{}{}_{}'.format(self.logdir, str(date), self.projectlabel)
         assert os.path.isdir(log)==False, "Oops! This project sub-directory already exists."
         if not os.path.isdir(log):
             print("creating your log sub-directory")
@@ -253,23 +247,22 @@ class personal_trainer:
         training_writer = torch.utils.tensorboard.SummaryWriter(log_dir=log + '/train')
         latest_checkpoint = '{}/latest.pt'.format(log)
         best_checkpoint = '{}/best.pt'.format(log)
-        shutil.copy(self.train_file, '{}/trainer.py'.format(log))
+        shutil.copy(self.train_file, '{}/trainer.py'.format(log, str(date), self.projectlabel))
         if self.personal == True:
-            shutil.copy('models/nets.py', '{}/model.py'.format(log))
-        return log, training_writer, latest_checkpoint, best_checkpoint
+            shutil.copy('models/nets.py', '{}/model.py'.format(log, str(date), self.projectlabel))
+        return training_writer, latest_checkpoint, best_checkpoint
 
-    def save_model(self, nn, optimizer, energy_shifter, checkpoint, lr_scheduler):
+    def save_model(self, nn, optimizer, energy_shifter, checkpoint):
         torch.save({
             'model': nn.state_dict(),
-            'AdamW': optimizer.state_dict(),
-            'self_energies': energy_shifter, 
-            'AdamW_scheduler':  lr_scheduler
+            'adamw': optimizer.state_dict(),
+            'self_energies': energy_shifter
             }, checkpoint)
     
     def restart_train(self, latest_checkpoint, nn, optimizer, lr_scheduler):
         if os.path.isfile(latest_checkpoint):
             checkpoint = torch.load(latest_checkpoint)
-            nn.load_state_dict(checkpoint['model'])
+            nn.load_state_dict(checkpoint['nn'])
             optimizer.load_state_dict(checkpoint['AdamW'])
             lr_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
 
@@ -284,14 +277,11 @@ class personal_trainer:
         total_energy_mse = 0.0
         count = 0 
         if self.charges == True:
-            total_charge_mse = 0.0
             total_excess_mse = 0.0
         if self.forces == True:
             total_force_mse = 0.0
         if self.dipole == True:
             total_dipole_mse = 0.0
-        if self.typed_charges == True:
-            type_charge_mse = 0.0
         for properties in validation:
             species = properties['species'].to(self.device)
             coordinates = properties['coordinates'].to(self.device).float().requires_grad_(True)
@@ -301,19 +291,11 @@ class personal_trainer:
                 true_forces = properties['forces'].to(self.device).float()
             if self.dipole == True:
                 true_dipoles = properties['dipoles'].to(self.device).float()
-            if self.charges == True:
-                initial_charges = properties['am1bcc_charges'].to(self.device).float()
-            if self.typed_charges == True:
-                true_charges = properties['atomic_charges_mbis'].to(self.device).float()
             if self.personal == True:
-                if self.typed_charges == True:
-                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                 if self.dipole == True:
                     _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, predicted_dipole = model((species, coordinates))
-                if self.charges == True:
-                    _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
-                #else:
-                #    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
+                else:
+                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
             else:
                 if self.dipole == True:
                     raise TypeError ('Published ANI does not currently support dipoles.')
@@ -328,9 +310,7 @@ class personal_trainer:
             if self.dipole == True:
                 total_dipole_mse += mse_sum(predicted_dipoles, true_dipoles).item()
             if self.charges == True:
-                total_charge_mse += mse_sum(predicted_charges.sum(dim=1), init_charge.sum(dim=1)).item()
-            if self.typed_charges == True:
-                type_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item() 
+                total_excess_mse += mse_sum(excess_charge, torch.zeros_like(excess_charge)).item()
         energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
         valdict['energy_rmse']=energy_rmse
         if self.forces == True:
@@ -340,11 +320,8 @@ class personal_trainer:
             dipole_rmse = self.eA2debeye(math.sqrt(total_dipole_mse / count))
             valdict['dipole_rmse']=dipole_rmse
         if self.charges == True:
-            charge_rmse = math.sqrt(total_charge_mse / count)
-            valdict['charge_rmse'] = charge_rmse
-        if self.typed_charges == True: 
-            type_charge_rmse = math.sqrt(type_charge_mse / count)
-            valdict['typed_charge'] = type_charge_rmse
+            charge_rmse = math.sqrt(total_excess_mse / count)
+            valdict['charge_rmse']=charge_rmse
         return valdict
 
     def trainer(self):
@@ -354,14 +331,13 @@ class personal_trainer:
         nn, model, modules = self.model_creator(aev_computer)
         AdamW = self.AdamWOpt_build(modules, self.weight_decay)
         LRscheduler = self.LR_Plat_scheduler(AdamW)
-        logdir, training_writer, latest_pt, best_pt = self.pt_setup()
-        shutil.copyfile('/data/khuddzu/personal_trainer/personal_trainer/protocol.py', '{}/protocol.py'.format(logdir))
+        training_writer, latest_pt, best_pt = self.pt_setup()
         if self.num_tasks > 1:
             mtl = MTLLoss(num_tasks=self.num_tasks).to(self.device)
             AdamW.param_groups[0]['params'].append(mtl.log_sigma)  #avoids LRdecay problem
-        best = 1e3
         mse = torch.nn.MSELoss(reduction='none')
         print("training starting from epoch", LRscheduler.last_epoch + 1)
+
         for _ in range(LRscheduler.last_epoch + 1, self.max_epochs):
             valrmse = self.validate(validation, model)
             for k, v in valrmse.items():
@@ -371,14 +347,12 @@ class personal_trainer:
                 break
             
             #best checkpoint
-            if valrmse['energy_rmse'] < best: 
-            #if LRscheduler.is_better(valrmse['energy_rmse'], LRscheduler.best):
+            if LRscheduler.is_better(valrmse['energy_rmse'], LRscheduler.best):
                 print('Saving the model, epoch={}, RMSE = {}'.format((LRscheduler.last_epoch + 1), valrmse['energy_rmse']))
-                self.save_model(nn, AdamW, energy_shifter, best_pt, LRscheduler)
+                self.save_model(nn, AdamW, energy_shifter, best_pt)
                 for k, v in valrmse.items():
                     training_writer.add_scalar('best_{}'.format(k), v, LRscheduler.last_epoch)
-                best = valrmse['energy_rmse']
-            LRscheduler.step()
+            LRscheduler.step(valrmse['energy_rmse'])
             for i, properties in tqdm.tqdm(
                 enumerate(training),
                 total=len(training),
@@ -397,12 +371,6 @@ class personal_trainer:
                 if self.personal == True:
                     if self.dipole == True:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, predicted_dipole = model((species, coordinates))
-                    if self.charges == True:
-                        initial_charges = properties['am1bcc_charges'].to(self.device)
-                        _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
-                    if self.typed_charges == True:
-                        true_charges = properties['atomic_charges_mbis'].to(self.device)
-                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                     else:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
                 else:
@@ -415,26 +383,16 @@ class personal_trainer:
                     forces = -torch.autograd.grad(predicted_energies.sum(), coordinates, create_graph=True, retain_graph=True)[0]
                 ##Get loss##
                 energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
-                if self.typed_charges == True: 
-                    charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
-                if self.charges == True:
-                    total_charge_loss = torch.sum((((predicted_charges-init_charge)**2).sum(dim=1))/num_atoms).mean() 
                 if self.forces == True:
                     force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
                 if self.dipole == True:
                     dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
-                ####FIX THIS#####
                 if self.forces == True and self.dipole == True:
                     loss = mtl(energy_loss, force_loss, dipole_loss)
                 elif self.forces == True:
                     loss = mtl(energy_loss, force_loss)
                 elif self.dipole == True:
                     loss = mtl(energy_loss, dipole_loss)
-                elif self.charges == True:
-                    loss = energy_loss
-                    #loss = energy_loss + ((1)*total_charge_loss)
-                elif self.typed_charges ==True:
-                    loss = energy_loss + charge_loss
                 else:
                     loss = energy_loss
                 ##BackProp##
@@ -443,8 +401,7 @@ class personal_trainer:
                 AdamW.step()
                 training_writer.add_scalar('batch_loss', loss, LRscheduler.last_epoch * len(training) + i)
                 training_writer.add_scalar('learning_rate', learning_rate, LRscheduler.last_epoch)
-            self.save_model(nn, AdamW, energy_shifter, latest_pt, LRscheduler)
+            self.save_model(nn, AdamW, energy_shifter, latest_pt)
 
 
-
-       
+        
