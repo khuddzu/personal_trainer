@@ -297,7 +297,7 @@ class personal_trainer:
             true_energies = properties['energies'].to(self.device).float()
             num_atoms = (species >= 0).sum(dim=1, dtype=true_energies.dtype)
             if self.typed_charges == True:
-                true_charges = properties['mbis_charges'].to(self.device).float()
+                true_charges = properties['am1bcc_charges'].to(self.device).float()
             if self.personal == True:
                 if self.typed_charges == True:
                     _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
@@ -381,7 +381,7 @@ class personal_trainer:
                         initial_charges = properties['am1bcc_charges'].to(self.device)
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
                     if self.typed_charges == True:
-                        true_charges = properties['mbis_charges'].to(self.device)
+                        true_charges = properties['am1bcc_charges'].to(self.device)
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                     else:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
@@ -414,11 +414,12 @@ class personal_trainer:
                     loss = energy_loss
                     #loss = energy_loss + ((1)*total_charge_loss)
                 elif self.typed_charges ==True:
-                    print('EL:', energy_loss)
-                    print('QL:',(1/300)*charge_loss)
-                    
-                    loss = energy_loss + (1/300)*charge_loss
-                    print('Total:', loss)
+                    #print('EL:', energy_loss)
+                    #print('QL:',(1/300)*charge_loss)
+                    training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
+                    training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
+                    loss = energy_loss + charge_loss
+                    #print('Total:', loss)
                 else:
                     loss = energy_loss
                 ##BackProp##
