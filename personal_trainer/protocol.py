@@ -5,12 +5,12 @@ from torchani.transforms import AtomicNumbersToIndices, SubtractSAE
 from typing import Tuple, NamedTuple, Optional, Sequence
 from torch.nn import Module
 from copy import deepcopy
-from models.nets import ANIModelAIM
+#from models.nets import ANIModelCharge
 import math
 import torch.utils.tensorboard
 import os
 import shutil
-from .loss import MTLLoss
+from .mtl_loss import MTLLoss
 import tqdm
 import datetime
 
@@ -25,9 +25,9 @@ class personal_trainer:
             netlike2x: bool=False, 
             functional: str = 'wb97x', 
             basis_set: str = '631gd',
+            energy : bool=True,
             forces : bool=False, 
-            charges : bool=False, 
-            typed_charges : bool=False,
+            charges : bool=False,
             dipole : bool=False, 
             constants = None, 
             elements = None, 
@@ -36,6 +36,7 @@ class personal_trainer:
             ds_path: str = None,
             h5_path: str = None, 
             include_properties: list=['energies', 'species', 'coordinates', 'forces'], 
+            charge_type : str=None,
             logdir: str = None, 
             projectlabel: str = None,
             train_file  = os.path.abspath(__file__), 
@@ -46,6 +47,8 @@ class personal_trainer:
             classifier_out: int = 1,
             num_tasks : int = 1, 
             personal: bool = True, 
+            loss_beta: float = 1.0, 
+            mtl_loss: bool = False, 
             weight_decay: list = [6.1E-5, None, None, None], 
             lr_factor: int = 0.7, 
             lr_patience: int = 14, 
@@ -67,15 +70,16 @@ class personal_trainer:
         self.netlike2x = netlike2x
         self.functional = functional
         self.basis_set = basis_set
+        self.energy = energy
         self.forces = forces
         self.charges = charges
-        self.typed_charges = typed_charges
         self.dipole = dipole
         self.gsae_dat = gsae_dat
         self.batch_size = batch_size
         self.ds_path = ds_path
         self.h5_path = h5_path
         self.include_properties = include_properties
+        self.charge_type = charge_type
         self.logdir = logdir
         self.projectlabel = projectlabel
         self.now = now
@@ -84,6 +88,8 @@ class personal_trainer:
         self.bias = bias
         self.classifier_out = classifier_out
         self.personal = personal
+        self.loss_beta = loss_beta
+        self.mtl_loss = mtl_loss
         self.weight_decay = weight_decay
         self.factor = lr_factor
         self.patience = lr_patience
@@ -216,10 +222,14 @@ class personal_trainer:
     def model_creator(self, aev_computer):
         modules = self.setup_nets(aev_computer.aev_length)
         if self.personal == True:
-            from models.nets import ANIModelAIM
-            nn = ANIModelAIM(modules, aev_computer)
-            nn.apply(self.init_params)
-            model = nn.to(self.device)
+            if self.charges == True:
+                if self.energy == True:
+                    from models.CEnets import ANIModelCharge
+                else:
+                    from models.Cnets import ANIModelCharge
+                nn = ANIModelCharge(modules, aev_computer)
+                nn.apply(self.init_params)
+                model = nn.to(self.device)
         else:
             nn = torchani.ANIModel(modules)
             nn.apply(self.init_params)
@@ -254,7 +264,11 @@ class personal_trainer:
         best_checkpoint = '{}/best.pt'.format(log)
         shutil.copy(self.train_file, '{}/trainer.py'.format(log))
         if self.personal == True:
-            shutil.copy('models/nets.py', '{}/model.py'.format(log))
+            if self.charges == True:
+                if self.energy == True:
+                    shutil.copy('models/CEnets.py', '{}/model.py'.format(log))
+                else:
+                    shutil.copy('models/Cnets.py', '{}/model.py'.format(log))
         return log, training_writer, latest_checkpoint, best_checkpoint
 
     def save_model(self, nn, optimizer, energy_shifter, checkpoint, lr_scheduler):
@@ -280,39 +294,42 @@ class personal_trainer:
         valdict = {}
         mse_sum = torch.nn.MSELoss(reduction='sum')
         mse = torch.nn.MSELoss(reduction='none')
-        total_energy_mse = 0.0
         count = 0 
+        if self.energy == True:
+            total_energy_mse = 0.0
         if self.charges == True:
             total_charge_mse = 0.0
-            total_excess_mse = 0.0
         if self.forces == True:
             total_force_mse = 0.0
         if self.dipole == True:
             total_dipole_mse = 0.0
-        if self.typed_charges == True:
-            type_charge_mse = 0.0
         for properties in validation:
             species = properties['species'].to(self.device)
             coordinates = properties['coordinates'].to(self.device).float().requires_grad_(True)
             true_energies = properties['energies'].to(self.device).float()
             num_atoms = (species >= 0).sum(dim=1, dtype=true_energies.dtype)
-            if self.typed_charges == True:
-                true_charges = properties['mbis_charges'].to(self.device).float()
+            if self.charges == True:
+                true_charges = properties[self.charge_type].to(self.device).float()
             if self.personal == True:
-                if self.typed_charges == True:
-                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                if self.charges == True:
+                    if self.energy == True:
+                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                    else:
+                        _, predicted_charges, excess_charge, correction = model((species, coordinates))
             else:
                 if self.dipole == True:
                     raise TypeError ('Published ANI does not currently support dipoles.')
                 if self.charges == True:
                     raise TypeError ('Published ANI does not currently support charge prediction.')
                 _, predicted_energies = model((species, coordinates))
-            count += predicted_energies.shape[0]
-            total_energy_mse += mse_sum(predicted_energies, true_energies).item()
-            if self.typed_charges == True:
-                type_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item() 
-        energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
-        valdict['energy_rmse']=energy_rmse
+            count += true_energies.shape[0]
+            if self.energy == True:
+                total_energy_mse += mse_sum(predicted_energies, true_energies).item()
+            if self.charges == True:
+                total_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
+        if self.energy == True:
+            energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
+            valdict['energy_rmse']=energy_rmse
         if self.forces == True:
             force_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_force_mse / count))
             valdict['force_rmse']=force_rmse
@@ -322,9 +339,6 @@ class personal_trainer:
         if self.charges == True:
             charge_rmse = math.sqrt(total_charge_mse / count)
             valdict['charge_rmse'] = charge_rmse
-        if self.typed_charges == True: 
-            type_charge_rmse = math.sqrt(type_charge_mse / count)
-            valdict['typed_charge'] = type_charge_rmse
         return valdict
 
     def trainer(self):
@@ -337,8 +351,9 @@ class personal_trainer:
         logdir, training_writer, latest_pt, best_pt = self.pt_setup()
         shutil.copyfile('/data/khuddzu/personal_trainer/personal_trainer/protocol.py', '{}/protocol.py'.format(logdir))
         if self.num_tasks > 1:
-            mtl = MTLLoss(num_tasks=self.num_tasks).to(self.device)
-            AdamW.param_groups[0]['params'].append(mtl.log_sigma)  #avoids LRdecay problem
+            if self.mtl_loss:
+                mtl = MTLLoss(num_tasks=self.num_tasks).to(self.device)
+                AdamW.param_groups[0]['params'].append(mtl.log_sigma)  #avoids LRdecay problem
         best = 1e3
         mse = torch.nn.MSELoss(reduction='none')
         print("training starting from epoch", LRscheduler.last_epoch + 1)
@@ -351,14 +366,17 @@ class personal_trainer:
                 break
             
             #best checkpoint
-            if valrmse['energy_rmse'] < best: 
-            #if LRscheduler.is_better(valrmse['energy_rmse'], LRscheduler.best):
-                print('Saving the model, epoch={}, RMSE = {}'.format((LRscheduler.last_epoch + 1), valrmse['energy_rmse']))
+            if self.energy ==True:
+                criteria = valrmse['energy_rmse']
+            else:
+                criteria = valrmse['charge_rmse']
+            if LRscheduler.is_better(criteria, LRscheduler.best):
+                print('Saving the model, epoch={}, RMSE = {}'.format((LRscheduler.last_epoch + 1), criteria))
                 self.save_model(nn, AdamW, energy_shifter, best_pt, LRscheduler)
                 for k, v in valrmse.items():
                     training_writer.add_scalar('best_{}'.format(k), v, LRscheduler.last_epoch)
-                best = valrmse['energy_rmse']
-            LRscheduler.step(valrmse['energy_rmse'])
+                best = criteria
+            LRscheduler.step(criteria)
             for i, properties in tqdm.tqdm(
                 enumerate(training),
                 total=len(training),
@@ -369,20 +387,17 @@ class personal_trainer:
                 coordinates = properties['coordinates'].to(self.device).float().requires_grad_(True)
                 true_energies = properties['energies'].to(self.device).float()
                 num_atoms = (species >= 0).sum(dim=1, dtype=true_energies.dtype)
-                if self.forces == True:
-                    true_forces = properties['forces'].to(self.device).float()
-                if self.dipole == True:
-                    true_dipoles = properties['dipole'].to(self.device).float()
                 ## Compute predicted ##
                 if self.personal == True:
                     if self.dipole == True:
+                        true_dipoles = properties['dipole'].to(self.device).float()
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, predicted_dipole = model((species, coordinates))
-                    if self.charges == True:
-                        initial_charges = properties['am1bcc_charges'].to(self.device)
-                        _, predicted_energies, predicted_atomic_energies, predicted_charges, init_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
-                    if self.typed_charges == True:
+                    elif self.charges == True:
                         true_charges = properties['mbis_charges'].to(self.device)
-                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                        if self.energy == True:
+                            _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                        else:
+                            _, predicted_charges, excess_charge, correction = model((species, coordinates))
                     else:
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb  = model((species, coordinates))
                 else:
@@ -392,35 +407,43 @@ class personal_trainer:
                         raise TypeError ('Published ANI does not currently support charge prediction.')
                     _, predicted_energies = model((species, coordinates))
                 if self.forces == True:
+                    true_forces = properties['forces'].to(self.device).float()
                     forces = -torch.autograd.grad(predicted_energies.sum(), coordinates, create_graph=True, retain_graph=True)[0]
                 ##Get loss##
-                energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
-                if self.typed_charges == True: 
-                    charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
-                if self.charges == True:
-                    total_charge_loss = torch.sum((((predicted_charges-init_charge)**2).sum(dim=1))/num_atoms).mean() 
-                if self.forces == True:
-                    force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
-                if self.dipole == True:
-                    dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
-                ####FIX THIS#####
-                if self.forces == True and self.dipole == True:
-                    loss = mtl(energy_loss, force_loss, dipole_loss)
-                elif self.forces == True:
-                    loss = mtl(energy_loss, force_loss)
-                elif self.dipole == True:
-                    loss = mtl(energy_loss, dipole_loss)
-                elif self.charges == True:
-                    loss = energy_loss
-                    #loss = energy_loss + ((1)*total_charge_loss)
-                elif self.typed_charges ==True:
-                    print('EL:', energy_loss)
-                    print('QL:',(1/300)*charge_loss)
-                    
-                    loss = energy_loss + (1/300)*charge_loss
-                    print('Total:', loss)
+                if self.mtl_loss:
+                    energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
+                    if self.forces == True and self.dipole == True:
+                        force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
+                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
+                        loss = mtl(energy_loss, force_loss, dipole_loss)
+                    if self.forces == True:
+                        force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
+                        loss = mtl(energy_loss, force_loss)
+                    if self.dipole == True:
+                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
+                        loss = mtl(energy_loss, dipole_loss)
+                    if self.charges ==True:
+                        charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
+                        loss = mtl(energy_loss, charge_loss)
+                        training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
+                        training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
                 else:
-                    loss = energy_loss
+                    loss = 0.0
+                    if self.energy == True:
+                        energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
+                        loss += energy_loss
+                        training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
+                    if self.charges == True:
+                        charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
+                        loss += self.loss_beta * charge_loss
+                        training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
+                    if self.forces == True:
+                        force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
+                        loss += force_loss
+                    if self.dipole == True:
+                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
+                        loss += dipole_loss
+
                 ##BackProp##
                 AdamW.zero_grad()
                 loss.backward()
