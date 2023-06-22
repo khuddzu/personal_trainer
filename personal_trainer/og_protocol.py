@@ -10,65 +10,87 @@ import math
 import torch.utils.tensorboard
 import os
 import shutil
-from .mtl_loss import MTLLoss
+from loss import MTLLoss
 import tqdm
 import datetime
-import configparser
 
 class personal_trainer:
     """
     Kate's Personal training class
     Keep track of species order in elements list, which is fed into setting up network architecture.
     """
-    def __init__(self, config_file):
-        # Create a configuration object 
-        config = configparser.ConfigParser(allow_no_value=True, inline_comment_prefixes="#")
-        config.read(config_file)
-
-        # Create dictionaries for Global and Training variables
-        gv = config['Global']
-        tv = config['Trainer']
-        
-        # Assign variables
-        self.device = eval(gv.get('device'))
-        self.netlike1x = gv.getboolean('netlike1x')
-        self.netlike2x = gv.getboolean('netlike2x')
-        self.functional = gv.get('functional')
-        self.basis_set = gv.get('basis_set')
-        self.forces = tv.getboolean('forces')
-        self.charges = tv.getboolean('charges')
-        self.dipole = tv.getboolean('dipole')
-        self.gsae_dat = eval(gv.get('gsae_dat'))
-        self.batch_size = tv.getint('batch_size')
-        self.ds_path = tv.get('ds_path')
-        self.h5_path = tv.get('h5_path')
-        self.include_properties = eval(tv.get('include_properties'))
-        self.logdir = tv.get('logdir')
-        self.projectlabel = tv.get('projectlabel')
-        self.now = eval(tv.get('now'))
-        self.data_split = eval(tv.get('data_split'))
-        self.activation = eval(gv.get('activation'))
-        self.bias = tv.getboolean('bias')
-        self.classifier_out = gv.getint('classifier_out')
-        self.personal = tv.getboolean('personal')
-        self.weight_decay = eval(tv.get('weight_decay'))
-        self.factor = tv.getfloat('lr_factor')
-        self.patience = tv.getint('lr_patience')
-        self.threshold = tv.getfloat('lr_threshold')
-        self.max_epochs = tv.getint('max_epochs')
-        self.earlylr = tv.getfloat('early_stopping_learning_rate')
-        self.restarting = tv.getboolean('restarting')
-        self.num_tasks = tv.getint('num_tasks')
-        self.train_file = tv.get('train_file')
-        if self.netlike1x == True:
+    def __init__(self, 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+            netlike1x: bool=False, 
+            netlike2x: bool=False, 
+            functional: str = 'wb97x', 
+            basis_set: str = '631gd',
+            forces : bool=False, 
+            charges : bool=False, 
+            dipole : bool=False, 
+            constants = None, 
+            elements = None, 
+            gsae_dat: str = None, 
+            batch_size: int = 2048, 
+            ds_path: str = None,
+            h5_path: str = None, 
+            include_properties: list=['energies', 'species', 'coordinates', 'forces'], 
+            logdir: str = None, 
+            projectlabel: str = None,
+            train_file  = os.path.abspath(__file__), 
+            now = None, 
+            data_split = {'training': 0.8, 'validation': 0.2}, 
+            activation: Optional[Module] = None,
+            bias: bool = False,
+            classifier_out: int = 1,
+            num_tasks : int = 1, 
+            personal: bool = True, 
+            weight_decay: list = [6.1E-5, None, None, None], 
+            lr_factor: int = 0.7, 
+            lr_patience: int = 14, 
+            lr_threshold: int = 0.0006, 
+            max_epochs: int = 2000,
+            early_stopping_learning_rate: int=1.0E-7, 
+            restarting: bool = False):
+        if netlike1x == True:
             self.constants = '/data/khuddzu/torchani_sandbox/torchani/resources/ani-1x_8x/rHCNO-5.2R_16-3.5A_a4-8.params'
             self.elements = ['H', 'C', 'N', 'O']
-        elif self.netlike2x == True:
+        elif netlike2x == True:
             self.constants = '/data/khuddzu/torchani_sandbox/torchani/resources/ani-2x_8x/rHCNOSFCl-5.1R_16-3.5A_a8-4.params'
             self.elements = ['H', 'C', 'N', 'O', 'S', 'F', 'Cl']
         else:
-            self.constants = eval(gv.get('constants'))
-            self.elements = eval(gv.get('elements'))
+            self.constants = constants
+            self.elements = elements
+        self.device = device
+        self.netlike1x = netlike1x
+        self.netlike2x = netlike2x
+        self.functional = functional
+        self.basis_set = basis_set
+        self.forces = forces
+        self.charges = charges
+        self.dipole = dipole
+        self.gsae_dat = gsae_dat
+        self.batch_size = batch_size
+        self.ds_path = ds_path
+        self.h5_path = h5_path
+        self.include_properties = include_properties
+        self.logdir = logdir
+        self.projectlabel = projectlabel
+        self.now = now
+        self.data_split = data_split
+        self.activation = activation
+        self.bias = bias
+        self.classifier_out = classifier_out
+        self.personal = personal
+        self.weight_decay = weight_decay
+        self.factor = lr_factor
+        self.patience = lr_patience
+        self.threshold = lr_threshold
+        self.max_epochs = max_epochs
+        self.earlylr = early_stopping_learning_rate
+        self.restarting = restarting
+        self.num_tasks = num_tasks
+        self.train_file = train_file
 
     
     def AEV_Computer(self):
@@ -381,22 +403,5 @@ class personal_trainer:
                 training_writer.add_scalar('learning_rate', learning_rate, LRscheduler.last_epoch)
             self.save_model(nn, AdamW, energy_shifter, latest_pt)
 
-    def model_builder(self, aev_computer, wkdir, checkpoint):
-        modules = self.setup_nets(aev_computer.aev_length)
-        if self.personal == True:
-            sys.path.append(wkdir)
-            from model import ANIModelAIM
-            nn = ANIModelAIM(modules, aev_computer)
-        else:
-            nn = torchani.ANIModel(modules)
-            checkpoint = torch.load(checkpoint)
-        nn.load_state_dict(checkpoint['model'],  strict=False)
-        model = torch.nn.Sequential(nn).to(self.device)
-        return model
 
-    def model_loader(self, wkdir, checkpoint):
-        aev_computer = self.AEV_Computer()
-        energy_shifter = self.Energy_Shifter()
-        model = self.model_builder(aev_computer, wkdir, checkpoint)
-        return aev_computer, energy_shifter, model
-
+        
