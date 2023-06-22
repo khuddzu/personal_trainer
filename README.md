@@ -14,7 +14,7 @@ To initiate the personal trainer protocol
 
 ### Format
 
-training\_center: main directory
+- training\_center: main directory
 
 	* logs : the directory that all of your trained models will be stored in. Currently the naming format is datetime\_projectname. 
 	
