@@ -2,7 +2,7 @@ import torch
 import torchani
 from pathlib import Path
 from torchani.transforms import AtomicNumbersToIndices, SubtractSAE
-from typing import Tuple, NamedTuple, Optional, Sequence
+from typing import Sequence
 from torch.nn import Module
 from copy import deepcopy
 import math
