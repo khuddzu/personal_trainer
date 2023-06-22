@@ -5,7 +5,6 @@ from torchani.transforms import AtomicNumbersToIndices, SubtractSAE
 from typing import Tuple, NamedTuple, Optional, Sequence
 from torch.nn import Module
 from copy import deepcopy
-#from models.nets import ANIModelAIM
 import math
 import torch.utils.tensorboard
 import os
