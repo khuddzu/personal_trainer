@@ -393,7 +393,7 @@ class personal_trainer:
                         true_dipoles = properties['dipole'].to(self.device).float()
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, predicted_dipole = model((species, coordinates))
                     elif self.charges == True:
-                        true_charges = properties['mbis_charges'].to(self.device)
+                        true_charges = properties[self.charge_type].to(self.device)
                         if self.energy == True:
                             _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                         else:
@@ -452,6 +452,27 @@ class personal_trainer:
                 training_writer.add_scalar('learning_rate', learning_rate, LRscheduler.last_epoch)
             self.save_model(nn, AdamW, energy_shifter, latest_pt, LRscheduler)
 
+    def model_builder(self, aev_computer):
+        modules = self.setup_nets(aev_computer.aev_length)
+        if self.personal == True:
+            sys.path.append(self.wkdir)
+            from model import ANIModelAIM
+            nn = ANIModelAIM(modules, aev_computer)
+            print(ANIModelAIM)
+            checkpoint = torch.load(self.checkpoint)
+            nn.load_state_dict(checkpoint['model'],  strict=False)
+            model = torch.nn.Sequential(nn).to(self.device)
+        else:
+            nn = torchani.ANIModel(modules)
+            checkpoint = torch.load(self.checkpoint)
+            nn.load_state_dict(checkpoint['model'],  strict=False)
+            model = torchani.nn.Sequential(aev_computer, nn).to(self.device)
+        return model, nn
+
+    def personal_model(self):
+        aev_computer = self.AEV_Computer()
+        energy_shifter = self.Energy_shifter()
+        model, nn = self.model_builder(aev_computer)
+        return aev_computer, energy_shifter, model, nn
 
 
-       
