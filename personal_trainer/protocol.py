@@ -144,7 +144,6 @@ class personal_trainer:
             layers.extend([torch.nn.Linear(dim_in, dim_out, bias=self.bias), self.activation])
         # final layer is a linear classifier that is always appended
         layers.append(torch.nn.Linear(dims[-1], self.classifier_out, bias=self.bias))
-
         assert len(layers) == (len(dims) - 1) * 2 + 1
         return torch.nn.Sequential(*layers)
 
@@ -266,6 +265,7 @@ class personal_trainer:
         if self.dipole == True:
             total_dipole_mse = 0.0
         for properties in validation:
+            print(1)
             species = properties['species'].to(self.device)
             coordinates = properties['coordinates'].to(self.device).float().requires_grad_(True)
             true_energies = properties['energies'].to(self.device).float()
@@ -337,7 +337,6 @@ class personal_trainer:
             learning_rate = AdamW.param_groups[0]['lr']
             if learning_rate < self.earlylr:
                 break
-            
             #best checkpoint
             criteria = valrmse['energy_rmse']
             if LRscheduler.is_better(criteria, LRscheduler.best):
@@ -376,6 +375,7 @@ class personal_trainer:
                     forces = -torch.autograd.grad(predicted_energies.sum(), coordinates, create_graph=True, retain_graph=True)[0]
                 ##Get loss##
                 if self.mtl_loss:
+                    print('is it here')
                     energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
                     if self.forces == True and self.dipole == True:
                         raise NotImplementedError ('We currently arent acknowledging this combo')
@@ -395,6 +395,7 @@ class personal_trainer:
                         training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
                         training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
                 else:
+                    print('im doing this')
                     loss = 0.0
                     if self.energy == True:
                         energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
