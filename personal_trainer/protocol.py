@@ -87,10 +87,18 @@ class personal_trainer:
         return energy_shifter
 
     def datasets_loading(self, energy_shifter):
-        if self.ds_path is None:
+        # ds_path can either be a path or None
+        # if it is a path, it can either exist or not
+        # if it is None -> In memory
+        # if it is an existing path -> use it
+        # if it is a nonoe existing path -> create it, and then use it
+        in_memory = self.ds_path is None
+        transform = torchani.transforms.Compose([AtomicNumbersToIndices(self.elements), SubtractSAE(self.elements, energy_shifter)])
+        if in_memory:
             learning_sets = torchani.datasets.create_batched_dataset(self.h5_path,
                                         include_properties=self.include_properties,
                                         batch_size=self.batch_size,
+                                        inplace_transform=transform,
                                         shuffle_seed=123456789,
                                         splits=self.data_split, direct_cache=True)
             training = torch.utils.data.DataLoader(learning_sets['training'],
@@ -102,21 +110,18 @@ class personal_trainer:
             validation= torch.utils.data.DataLoader(learning_sets['validation'],
                                                  shuffle=False,
                                                  num_workers=1,
-                                                 prefetch_factor=2,
-                                                 pin_memory=True,
-                                                 batch_size=None)
+                                                 prefetch_factor=2, pin_memory=True, batch_size=None)
         else:
             if not Path(self.ds_path).resolve().is_dir():
                 h5 = torchani.datasets.ANIDataset.from_dir(self.h5_path)
-                transform = torchani.transforms.Compose([AtomicNumbersToIndices(self.elements), SubtractSAE(self.elements, energy_shifter)])
                 torchani.datasets.create_batched_dataset(h5,
                                                  dest_path=self.ds_path,
                                                  batch_size=self.batch_size,
-                                                 inplace_transform=transform,
                                                  include_properties=self.include_properties,
                                                  splits = self.data_split) 
-            training = torchani.datasets.ANIBatchedDataset(self.ds_path, split='training')
-            validation = torchani.datasets.ANIBatchedDataset(self.ds_path, split='validation')
+            # This below loads the data if dspath exists
+            training = torchani.datasets.ANIBatchedDataset(self.ds_path, transform=transform, split='training')
+            validation = torchani.datasets.ANIBatchedDataset(self.ds_path, transform=transform, split='validation')
             training = torch.utils.data.DataLoader(training,
                                            shuffle=True,
                                            num_workers=1,
@@ -130,7 +135,7 @@ class personal_trainer:
                                              pin_memory=True,
                                              batch_size=None)
         return training, validation
-   
+    
     def standard(self, dims: Sequence[int]):
         r"""Makes a standard ANI style atomic network"""
         if self.activation is None:
@@ -265,7 +270,6 @@ class personal_trainer:
         if self.dipole == True:
             total_dipole_mse = 0.0
         for properties in validation:
-            print(1)
             species = properties['species'].to(self.device)
             coordinates = properties['coordinates'].to(self.device).float().requires_grad_(True)
             true_energies = properties['energies'].to(self.device).float()
@@ -375,7 +379,6 @@ class personal_trainer:
                     forces = -torch.autograd.grad(predicted_energies.sum(), coordinates, create_graph=True, retain_graph=True)[0]
                 ##Get loss##
                 if self.mtl_loss:
-                    print('is it here')
                     energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
                     if self.forces == True and self.dipole == True:
                         raise NotImplementedError ('We currently arent acknowledging this combo')
@@ -395,12 +398,9 @@ class personal_trainer:
                         training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
                         training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
                 else:
-                    print('im doing this')
-                    loss = 0.0
-                    if self.energy == True:
-                        energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
-                        loss += energy_loss
-                        training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
+                    energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
+                    loss = energy_loss
+                    training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
                     if self.charges == True:
                         charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
                         loss += self.loss_beta * charge_loss
