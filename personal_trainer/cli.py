@@ -9,11 +9,11 @@ def main():
     subparsers = parser.add_subparsers(dest='workflow', help='select workflow', required=True)
     common_parser = argparse.ArgumentParser(description="Common parser", add_help=False)
     common_parser.add_argument('-v', '--verbose', action='store_true')
-    parser_init = subparsers.add_parser('setup', help='Initiate a project', parents=[common_parser])
+    parser_init = subparsers.add_parser('initiate', help='Initiate a project', parents=[common_parser])
 
     args = parser.parse_args()
 
-    if args.workflow == "setup":
+    if args.workflow == "initiate":
             project_name = Path('training_center')
             assert not project_name.exists(
             ), (f"{project_name.absolute().as_posix()} already exists, please choose another project name.")
@@ -26,7 +26,7 @@ def main():
             shutil.copy(Path(__file__).parents[1] / 'templates/editor.ini', project_name)
             shutil.copy(Path(__file__).parents[1] / 'templates/template_model_loader.py', project_name)
             shutil.copy(Path(__file__).parents[1] / 'templates/template_trainer.py', project_name)
-
+            shutil.copy(Path(__file__).parents[1] / 'templates/template_nets.py', (project_name / 'models').as_posix())
 
 if __name__ == '__main__':
     main()

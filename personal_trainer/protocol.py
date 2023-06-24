@@ -41,16 +41,16 @@ class personal_trainer:
         self.batch_size = tv.getint('batch_size')
         self.ds_path = tv.get('ds_path')
         self.h5_path = tv.get('h5_path')
-        self.charge_type = tv.get('charge_type')            #add to INI
+        self.charge_type = tv.get('charge_type')            
         self.include_properties = eval(tv.get('include_properties'))
         self.logdir = tv.get('logdir')
         self.projectlabel = tv.get('projectlabel')
         self.now = eval(tv.get('now'))
         self.data_split = eval(tv.get('data_split'))
         self.activation = eval(gv.get('activation'))
-        self.bias = tv.getboolean('bias')
+        self.bias = gv.getboolean('bias')
         self.classifier_out = gv.getint('classifier_out')
-        self.personal = tv.getboolean('personal')
+        self.personal = gv.getboolean('personal')
         self.weight_decay = eval(tv.get('weight_decay'))
         self.factor = tv.getfloat('lr_factor')
         self.patience = tv.getint('lr_patience')
@@ -60,8 +60,8 @@ class personal_trainer:
         self.restarting = tv.getboolean('restarting')
         self.num_tasks = tv.getint('num_tasks')
         self.train_file = tv.get('train_file')
-        self.loss_beta = tv.getfloat('loss_beta')       #add to INI
-        self.mtl_loss = tv.getboolean('mtl_loss')       # add to INI
+        self.loss_beta = tv.getfloat('loss_beta')       
+        self.mtl_loss = tv.getboolean('mtl_loss')       
         if self.netlike1x == True:
             self.constants = '/data/khuddzu/torchani_sandbox/torchani/resources/ani-1x_8x/rHCNO-5.2R_16-3.5A_a4-8.params'
             self.elements = ['H', 'C', 'N', 'O']
@@ -217,7 +217,7 @@ class personal_trainer:
         optimizer, factor=self.factor, patience= self.patience, threshold=self.threshold)
         return scheduler
 
-    def dir_setup(self):
+    def log_setup(self):
         date = self.now.strftime("%Y%m%d_%H%M")
         log = '{}{}_{}'.format(self.logdir, date, self.projectlabel)
         assert os.path.isdir(log)==False, "Oops! This project sub-directory already exists."
@@ -227,7 +227,7 @@ class personal_trainer:
         training_writer = torch.utils.tensorboard.SummaryWriter(log_dir=log + '/train')
         latest_checkpoint = '{}/latest.pt'.format(log)
         best_checkpoint = '{}/best.pt'.format(log)
-        shutil.copy(self.train_file, '{}/trainer.py'.format(log))
+        #shutil.copy(self.train_file, '{}/trainer.py'.format(log))
         shutil.copyfile('/data/khuddzu/personal_trainer/personal_trainer/protocol.py', '{}/protocol.py'.format(log))
         if self.personal == True:
             shutil.copy('models/nets.py', '{}/model.py'.format(log))
@@ -320,7 +320,7 @@ class personal_trainer:
         nn, model, modules = self.model_creator(aev_computer)
         AdamW = self.AdamWOpt_build(modules, self.weight_decay)
         LRscheduler = self.LR_Plat_scheduler(AdamW)
-        training_writer, latest_pt, best_pt = self.pt_setup()
+        training_writer, latest_pt, best_pt = self.log_setup()
         if self.mtl_loss:
             if self.num_tasks > 1:
                 mtl = MTLLoss(num_tasks=self.num_tasks).to(self.device)
@@ -362,7 +362,7 @@ class personal_trainer:
                         raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                     if self.charges == True:
                         true_charges = properties[self.charge_type].to(self.device)
-                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                     else:
                         raise AttributeError ('What personal thing are you trying to do here?')
                 else:

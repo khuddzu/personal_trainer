@@ -26,4 +26,6 @@ To initiate the personal trainer protocol
 	
 	* template\_model\_loader.py: template code that loads your trained model, for use.
 	
+	* template\_nets.py: template code that represents the model class for your network. I use my common ANICHARGE model here. 
+	
 	* script.sh: template script to send your training job to the queue.
