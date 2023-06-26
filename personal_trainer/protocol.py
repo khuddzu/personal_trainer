@@ -11,6 +11,7 @@ import os
 import shutil
 from .mtl_loss import MTLLoss
 import tqdm
+import sys
 import datetime
 import configparser
 
@@ -195,8 +196,8 @@ class personal_trainer:
     def model_creator(self, aev_computer):
         modules = self.setup_nets(aev_computer.aev_length)
         if self.personal == True:
-            from models.nets import ANIModelCharge
-            nn = ANIModelCharge(modules, aev_computer)
+            from models.nets import ANIModelAIM
+            nn = ANIModelAIM(modules, aev_computer)
             nn.apply(self.init_params)
             model = nn.to(self.device)
         else:
@@ -263,8 +264,8 @@ class personal_trainer:
         mse = torch.nn.MSELoss(reduction='none')
         total_energy_mse = 0.0
         count = 0 
-        if self.charges == True:
-            total_charge_mse = 0.0
+        #if self.charges == True:
+        #    total_charge_mse = 0.0
         if self.forces == True:
             total_force_mse = 0.0
         if self.dipole == True:
@@ -279,10 +280,11 @@ class personal_trainer:
             if self.dipole == True:
                 true_dipoles = properties['dipoles'].to(self.device).float()
             if self.charges == True:
-                true_charges = properties[self.charge_type].to(self.device).float()
+                initial_charges = properties[self.charge_type].to(self.device).float()
+            #    true_charges = properties[self.charge_type].to(self.device).float()
             if self.personal == True:
                 if self.charges ==True: 
-                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                    _, predicted_energies, predicted_atomic_energies, predicted_charges, initial_charge, excess_charge, coulomb = model((species, coordinates), initial_charges)
                 if self.dipole == True:
                     raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                 if self.forces == True:
@@ -301,8 +303,8 @@ class personal_trainer:
             if self.dipole == True:
                 raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                 total_dipole_mse += mse_sum(predicted_dipoles, true_dipoles).item()
-            if self.charges == True:
-                total_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
+            #if self.charges == True:
+                #total_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
         energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
         valdict['energy_rmse']=energy_rmse
         if self.forces == True:
@@ -312,9 +314,9 @@ class personal_trainer:
             raise NotImplementedError ("Currently we aren't doing dipoles")
             dipole_rmse = self.eA2debeye(math.sqrt(total_dipole_mse / count))
             valdict['dipole_rmse']=dipole_rmse
-        if self.charges == True:
-            charge_rmse = math.sqrt(total_charge_mse / count)
-            valdict['charge_rmse']=charge_rmse
+        #if self.charges == True:
+        #    charge_rmse = math.sqrt(total_charge_mse / count)
+        #    valdict['charge_rmse']=charge_rmse
         return valdict
 
     def trainer(self):
@@ -364,8 +366,9 @@ class personal_trainer:
                     if self.dipole == True:
                         raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                     if self.charges == True:
-                        true_charges = properties[self.charge_type].to(self.device)
-                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                        initial_charges = properties[self.charge_type].to(self.device).float()
+                        #true_charges = properties[self.charge_type].to(self.device)
+                        _, predicted_energies, predicted_atomic_energies, predicted_charges, initial_charges, excess_charge, coulomb= model((species, coordinates), initial_charges)
                     else:
                         raise AttributeError ('What personal thing are you trying to do here?')
                 else:
@@ -402,7 +405,8 @@ class personal_trainer:
                     loss = energy_loss
                     training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
                     if self.charges == True:
-                        charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
+                        charge_loss = torch.sum((((predicted_charges-initial_charges)**2).sum(dim=1))/num_atoms).mean()
+                        #charge_loss = (mse(predicted_charges,initial_charges).sum(dim=1)/num_atoms).mean()
                         loss += self.loss_beta * charge_loss
                         training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
                     if self.forces == True:
@@ -420,23 +424,27 @@ class personal_trainer:
                 training_writer.add_scalar('batch_loss', loss, LRscheduler.last_epoch * len(training) + i)
                 training_writer.add_scalar('learning_rate', learning_rate, LRscheduler.last_epoch)
             self.save_model(nn, AdamW, energy_shifter, latest_pt, LRscheduler)
-
+    
     def model_builder(self, aev_computer, wkdir, checkpoint):
         modules = self.setup_nets(aev_computer.aev_length)
+        checkpoint = f'{wkdir}{checkpoint}'
         if self.personal == True:
             sys.path.append(wkdir)
-            from model import ANIModelCharge
-            nn = ANIModelCharge(modules, aev_computer)
+            from model import ANIModelAIM
+            nn = ANIModelAIM(modules, aev_computer)
+            print(ANIModelAIM)
+            checkpoint = torch.load(checkpoint)
+            nn.load_state_dict(checkpoint['model'],  strict=False)
+            model = torch.nn.Sequential(nn).to(self.device)
         else:
             nn = torchani.ANIModel(modules)
             checkpoint = torch.load(checkpoint)
-        nn.load_state_dict(checkpoint['model'],  strict=False)
-        model = torch.nn.Sequential(nn).to(self.device)
-        return model
-
+            nn.load_state_dict(checkpoint['model'],  strict=False)
+            model = torchani.nn.Sequential(aev_computer, nn).to(self.device)
+        return model, nn
+    
     def model_loader(self, wkdir, checkpoint):
         aev_computer = self.AEV_Computer()
         energy_shifter = self.Energy_Shifter()
-        model = self.model_builder(aev_computer, wkdir, checkpoint)
-        return aev_computer, energy_shifter, model
-
+        model, nn = self.model_builder(aev_computer, wkdir, checkpoint)
+        return aev_computer, energy_shifter, model, nn
