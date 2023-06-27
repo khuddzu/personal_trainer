@@ -41,6 +41,8 @@ class personal_trainer:
         self.gsae_dat = eval(gv.get('gsae_dat'))
         self.batch_size = tv.getint('batch_size')
         self.ds_path = tv.get('ds_path')
+        if self.ds_path == 'None':
+            self.ds_path = eval(self.ds_path)
         self.h5_path = tv.get('h5_path')
         self.charge_type = tv.get('charge_type')            
         self.include_properties = eval(tv.get('include_properties'))
@@ -336,7 +338,8 @@ class personal_trainer:
         mse = torch.nn.MSELoss(reduction='none')
         print("training starting from epoch", LRscheduler.last_epoch + 1)
         
-        for _ in range(LRscheduler.last_epoch + 1, self.max_epochs):
+        for epoch in range(LRscheduler.last_epoch + 1, self.max_epochs):
+        
             valrmse = self.validate(validation, model)
             for k, v in valrmse.items():
                 training_writer.add_scalar(k, v, LRscheduler.last_epoch)
@@ -381,42 +384,47 @@ class personal_trainer:
                     true_forces = properties['forces'].to(self.device).float()
                     forces = -torch.autograd.grad(predicted_energies.sum(), coordinates, create_graph=True, retain_graph=True)[0]
                 ##Get loss##
-                if self.mtl_loss:
-                    energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
-                    if self.forces == True and self.dipole == True:
-                        raise NotImplementedError ('We currently arent acknowledging this combo')
-                        force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
-                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
-                        loss = mtl(energy_loss, force_loss, dipole_loss)
-                    if self.forces == True:
-                        force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
-                        loss = mtl(energy_loss, force_loss)
-                    if self.dipole == True:
-                        raise NotImplementedError ('We currently arent doing dipoles.')
-                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
-                        loss = mtl(energy_loss, dipole_loss)
-                    if self.charges ==True:
-                        charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
-                        loss = mtl(energy_loss, charge_loss)
-                        training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
-                        training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
-                else:
+                if epoch <= 100:
                     energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
                     loss = energy_loss
                     training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
-                    if self.charges == True:
-                        charge_loss = torch.sum((((predicted_charges-initial_charges)**2).sum(dim=1))/num_atoms).mean()
-                        #charge_loss = (mse(predicted_charges,initial_charges).sum(dim=1)/num_atoms).mean()
-                        loss += self.loss_beta * charge_loss
-                        training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
-                    if self.forces == True:
-                        force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
-                        loss += force_loss
-                    if self.dipole == True:
-                        raise NotImplementedError ('We currently arent doing dipoles.')
-                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
-                        loss += dipole_loss
-                
+                else:
+                    if self.mtl_loss:
+                        energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
+                        if self.forces == True and self.dipole == True:
+                            raise NotImplementedError ('We currently arent acknowledging this combo')
+                            force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
+                            dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
+                            loss = mtl(energy_loss, force_loss, dipole_loss)
+                        if self.forces == True:
+                            force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
+                            loss = mtl(energy_loss, force_loss)
+                        if self.dipole == True:
+                            raise NotImplementedError ('We currently arent doing dipoles.')
+                            dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
+                            loss = mtl(energy_loss, dipole_loss)
+                        if self.charges ==True:
+                            charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
+                            loss = mtl(energy_loss, charge_loss)
+                            training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
+                            training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
+                    else:
+                        energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
+                        loss = energy_loss
+                        training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
+                        if self.charges == True:
+                            charge_loss = torch.sum((((predicted_charges-initial_charges)**2).sum(dim=1))/num_atoms).mean()
+                            #charge_loss = (mse(predicted_charges,initial_charges).sum(dim=1)/num_atoms).mean()
+                            loss += self.loss_beta * charge_loss
+                            training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
+                        if self.forces == True:
+                            force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
+                            loss += force_loss
+                        if self.dipole == True:
+                            raise NotImplementedError ('We currently arent doing dipoles.')
+                            dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
+                            loss += dipole_loss
+                    
                 ##BackProp##
                 AdamW.zero_grad()
                 loss.backward()
