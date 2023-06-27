@@ -13,6 +13,7 @@ from .mtl_loss import MTLLoss
 import tqdm
 import datetime
 import configparser
+import sys
 
 class personal_trainer:
     """
