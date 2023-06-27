@@ -396,7 +396,7 @@ class personal_trainer:
                         dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
                         loss = mtl(energy_loss, dipole_loss)
                     if self.charges ==True:
-                        charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
+                        charge_loss = (mse(predicted_charges,initial_charges).sum(dim=1)/num_atoms).mean()
                         loss = mtl(energy_loss, charge_loss)
                         training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
                         training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
