@@ -428,16 +428,20 @@ class personal_trainer:
             sys.path.append(wkdir)
             from model import ANIModelCharge
             nn = ANIModelCharge(modules, aev_computer)
+            print(ANIModelCharge)
+            checkpoint = torch.load(wkdir+checkpoint)
+            nn.load_state_dict(checkpoint['model'],  strict=False)
+            model = torch.nn.Sequential(nn).to(self.device)
         else:
             nn = torchani.ANIModel(modules)
             checkpoint = torch.load(checkpoint)
-        nn.load_state_dict(checkpoint['model'],  strict=False)
-        model = torch.nn.Sequential(nn).to(self.device)
-        return model
+            nn.load_state_dict(checkpoint['model'],  strict=False)
+            model = torchani.nn.Sequential(aev_computer, nn).to(self.device)
+        return model, nn
 
     def model_loader(self, wkdir, checkpoint):
         aev_computer = self.AEV_Computer()
         energy_shifter = self.Energy_Shifter()
-        model = self.model_builder(aev_computer, wkdir, checkpoint)
-        return aev_computer, energy_shifter, model
+        model, nn = self.model_builder(aev_computer, wkdir, checkpoint)
+        return aev_computer, energy_shifter, model, nn
 
