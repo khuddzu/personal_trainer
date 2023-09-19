@@ -1,4 +1,5 @@
 **/__pycache__/
-*.egg-info/*
-*/personal_trainer.egg-info
-training_center/*
+**/.egg
+*.egg-info/
+**/*.egg-info/
+training_center/
