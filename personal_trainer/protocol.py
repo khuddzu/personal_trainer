@@ -20,7 +20,8 @@ class personal_trainer:
     Kate's Personal training class
     Keep track of species order in elements list, which is fed into setting up network architecture.
     """
-    def __init__(self, config_file):
+    def __init__(self, config_file, 
+            device = torch.device('cpu')):
         # Create a configuration object 
         config = configparser.ConfigParser(allow_no_value=True, inline_comment_prefixes="#")
         config.read(config_file)
@@ -30,7 +31,7 @@ class personal_trainer:
         tv = config['Trainer']
         
         # Assign variables
-        self.device = eval(gv.get('device'))
+        self.device = device
         self.netlike1x = gv.getboolean('netlike1x')
         self.netlike2x = gv.getboolean('netlike2x')
         self.functional = gv.get('functional')
@@ -395,9 +396,11 @@ class personal_trainer:
                         loss = mtl(energy_loss, dipole_loss)
                     if self.charges ==True:
                         charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
-                        loss = mtl(energy_loss, charge_loss)
+                        loss, precisions, loss_terms = mtl(energy_loss, charge_loss)
                         training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
                         training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
+                        training_writer.add_scalar('energy_term', precisions[0]*loss_terms[0], LRscheduler.last_epoch)
+                        training_writer.add_scalar('charge_term', precisions[1]*loss_terms[1], LRscheduler.last_epoch)
                 else:
                     energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
                     loss = energy_loss
