@@ -10,7 +10,7 @@ To install:
 
 To initiate the personal trainer protocol 
 
-`personal_trainer setup`
+`personal_trainer initiate`
 
 ### Format
 
