@@ -2,7 +2,8 @@ __pycache__/
 *.pyc
 *.pyo
 dist/
+build/
+training_center/
 **/.egg*
 **/*.egg-info/
-training_center/
 .vscode/
