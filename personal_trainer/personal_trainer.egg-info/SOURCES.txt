@@ -1,6 +1,0 @@
-personal_trainer.egg-info/PKG-INFO
-personal_trainer.egg-info/SOURCES.txt
-personal_trainer.egg-info/dependency_links.txt
-personal_trainer.egg-info/entry_points.txt
-personal_trainer.egg-info/requires.txt
-personal_trainer.egg-info/top_level.txt
