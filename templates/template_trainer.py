@@ -1,5 +1,7 @@
 import personal_trainer
 from personal_trainer import protocol 
+import torch
 
-pt = protocol.personal_trainer('editor.ini')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+pt = protocol.personal_trainer('editor.ini'i, device=device)
 pt.trainer()
