@@ -20,7 +20,8 @@ class personal_trainer:
     Kate's Personal training class
     Keep track of species order in elements list, which is fed into setting up network architecture.
     """
-    def __init__(self, config_file):
+    def __init__(self, config_file, 
+            device = torch.device('cpu')):
         # Create a configuration object 
         config = configparser.ConfigParser(allow_no_value=True, inline_comment_prefixes="#")
         config.read(config_file)
@@ -30,7 +31,7 @@ class personal_trainer:
         tv = config['Trainer']
         
         # Assign variables
-        self.device = eval(gv.get('device'))
+        self.device = device
         self.netlike1x = gv.getboolean('netlike1x')
         self.netlike2x = gv.getboolean('netlike2x')
         self.functional = gv.get('functional')
