@@ -268,6 +268,8 @@ class personal_trainer:
         mse = torch.nn.MSELoss(reduction='none')
         total_energy_mse = 0.0
         count = 0 
+        charge_count = 0
+        dipole_count = 0 
         ### Doing dipole code by hand, adding to when charges is true for sake of time 
         if self.charges == True:
             total_charge_mse = 0.0
@@ -288,6 +290,8 @@ class personal_trainer:
             if self.charges == True:
                 true_charges = properties[self.charge_type].to(self.device).float()
                 true_dipoles = properties['dipoles'].to(self.device).float()
+                charge_count += true_charges.flatten().shape[0]
+                dipole_count += true_dipoles.flatten().shape[0]
             if self.personal == True:
                 if self.charges ==True: 
                     _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction, predicted_dipoles = model((species, coordinates))
@@ -308,32 +312,6 @@ class personal_trainer:
                 total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
             if self.dipole == True:
                 raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
-            total_energy_mse += mse_sum(predicted_energies, true_energies).item()
-            if self.forces == True:
-                forces = -torch.autograd.grad(predicted_energies.sum(), coordinates)[0]
-                total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
-            if self.dipole == True:
-                raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
-                total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
-            if self.dipole == True:
-                raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
-            total_energy_mse += mse_sum(predicted_energies, true_energies).item()
-            if self.forces == True:
-                forces = -torch.autograd.grad(predicted_energies.sum(), coordinates)[0]
-                total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
-            if self.dipole == True:
-                raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
-                total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
-            if self.dipole == True:
-                raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
-            count += true_energies.shape[0]
-            total_energy_mse += mse_sum(predicted_energies, true_energies).item()
-            if self.forces == True:
-                forces = -torch.autograd.grad(predicted_energies.sum(), coordinates)[0]
-                total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
-            if self.dipole == True:
-                raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
-                total_dipole_mse += mse_sum(predicted_dipoles, true_dipoles).item()
             if self.charges == True:
                 #total_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
                 total_charge_mse += mse_sum(predicted_charges.flatten(), true_charges.flatten()).item()
