@@ -278,44 +278,45 @@ class personal_trainer:
             total_force_mse = 0.0
         if self.dipole == True:
             total_dipole_mse = 0.0
-        for properties in validation:
-            species = properties['species'].to(self.device)
-            coordinates = properties['coordinates'].to(self.device).float().requires_grad_(True)
-            true_energies = properties['energies'].to(self.device).float()
-            num_atoms = (species >= 0).sum(dim=1, dtype=true_energies.dtype)
-            if self.forces == True:
-                true_forces = properties['forces'].to(self.device).float()
-            if self.dipole == True:
-                true_dipoles = properties['dipoles'].to(self.device).float()
-            if self.charges == True:
-                true_charges = properties[self.charge_type].to(self.device).float()
-                true_dipoles = properties['dipoles'].to(self.device).float()
-                charge_count += true_charges.flatten().shape[0]
-                dipole_count += true_dipoles.flatten().shape[0]
-            if self.personal == True:
-                if self.charges ==True: 
-                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction, predicted_dipoles = model((species, coordinates))
+        with torch.no_grad():
+            for properties in validation:
+                species = properties['species'].to(self.device)
+                coordinates = properties['coordinates'].to(self.device).float()
+                true_energies = properties['energies'].to(self.device).float()
+                num_atoms = (species >= 0).sum(dim=1, dtype=true_energies.dtype)
+                if self.forces == True:
+                    true_forces = properties['forces'].to(self.device).float()
+                if self.dipole == True:
+                    true_dipoles = properties['dipoles'].to(self.device).float()
+                if self.charges == True:
+                    true_charges = properties[self.charge_type].to(self.device).float()
+                    true_dipoles = properties['dipoles'].to(self.device).float()
+                    charge_count += true_charges.flatten().shape[0]
+                    dipole_count += true_dipoles.flatten().shape[0]
+                if self.personal == True:
+                    if self.charges ==True: 
+                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction, predicted_dipoles = model((species, coordinates))
+                    if self.dipole == True:
+                        raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
+                    if self.forces == True:
+                        raise NotImplementedError ('Currently there is no setup here for force calculation.')
+                else:
+                    if self.dipole == True:
+                        raise TypeError ('Published ANI does not currently support dipoles.')
+                    if self.charges == True:
+                        raise TypeError ('Published ANI does not currently support charge prediction.')
+                    _, predicted_energies = model((species, coordinates))
+                count += true_energies.shape[0]
+                total_energy_mse += mse_sum(predicted_energies, true_energies).item()
+                if self.forces == True:
+                    forces = -torch.autograd.grad(predicted_energies.sum(), coordinates)[0]
+                    total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
                 if self.dipole == True:
                     raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
-                if self.forces == True:
-                    raise NotImplementedError ('Currently there is no setup here for force calculation.')
-            else:
-                if self.dipole == True:
-                    raise TypeError ('Published ANI does not currently support dipoles.')
                 if self.charges == True:
-                    raise TypeError ('Published ANI does not currently support charge prediction.')
-                _, predicted_energies = model((species, coordinates))
-            count += true_energies.shape[0]
-            total_energy_mse += mse_sum(predicted_energies, true_energies).item()
-            if self.forces == True:
-                forces = -torch.autograd.grad(predicted_energies.sum(), coordinates)[0]
-                total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
-            if self.dipole == True:
-                raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
-            if self.charges == True:
-                #total_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
-                total_charge_mse += mse_sum(predicted_charges.flatten(), true_charges.flatten()).item()
-                total_dipole_mse += mse_sum(predicted_dipoles.flatten(), true_dipoles.flatten()).item()
+                    #total_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
+                    total_charge_mse += mse_sum(predicted_charges.flatten(), true_charges.flatten()).item()
+                    total_dipole_mse += mse_sum(predicted_dipoles.flatten(), true_dipoles.flatten()).item()
         energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
         valdict['energy_rmse']=energy_rmse
         if self.forces == True:
