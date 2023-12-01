@@ -371,7 +371,11 @@ class personal_trainer:
                     if self.charges == True:
                         true_charges = properties[self.charge_type].to(self.device)
                         true_dipoles = self.get_dipole(coordinates, true_charges)
+                        print(true_dipoles.shape)
+                        print(true_dipoles)
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction, predicted_dipoles = model((species, coordinates))
+                        print(predicted_dipoles.shape)
+                        print(predicted_dipoles)
                     else:
                         raise AttributeError ('What personal thing are you trying to do here?')
                 else:
