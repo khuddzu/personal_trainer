@@ -24,4 +24,4 @@ class MTLLoss(torch.nn.Module):
         for task in range(self.num_tasks):
             total_loss += self.precisions[task] * loss_terms[task] + self.log_sigma[task]
 
-        return total_loss, self.precisions, loss_terms
+        return total_loss#, self.precisions, loss_terms
