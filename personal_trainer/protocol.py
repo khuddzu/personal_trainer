@@ -256,9 +256,14 @@ class personal_trainer:
             lr_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
 
         
-    def eA2debeye(x):
-        return x/0.20819434
-        
+    def get_dipole(self, xyz, charges):
+        charge = charges.unsqueeze(1)
+        xyz = xyz.permute(0,2,1)
+        dipole = charge*xyz
+        dipole = dipole.permute(0,2,1)
+        dipole = torch.sum(dipole,dim=1)
+        return dipole
+ 
     def validate(self, validation, model):
         valdict = {}
         mse_sum = torch.nn.MSELoss(reduction='sum')
@@ -278,10 +283,9 @@ class personal_trainer:
             num_atoms = (species >= 0).sum(dim=1, dtype=true_energies.dtype)
             if self.forces == True:
                 true_forces = properties['forces'].to(self.device).float()
-            if self.dipole == True:
-                true_dipoles = properties['dipoles'].to(self.device).float()
             if self.charges == True:
                 true_charges = properties[self.charge_type].to(self.device).float()
+                true_dipoles = self.get_dipole(coordinates, true_charges)
             if self.personal == True:
                 if self.charges ==True: 
                     _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction,predicted_dipoles = model((species, coordinates))
@@ -364,11 +368,9 @@ class personal_trainer:
                 num_atoms = (species >= 0).sum(dim=1, dtype=true_energies.dtype)
                 ## Compute predicted ##
                 if self.personal == True:
-                    if self.dipole == True:
-                        true_dipoles = properties['dipoles'].to(self.device)
-                        #raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                     if self.charges == True:
                         true_charges = properties[self.charge_type].to(self.device)
+                        true_dipoles = self.get_dipoles(coordinates, true_charges)
                         _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction, predicted_dipoles = model((species, coordinates))
                     else:
                         raise AttributeError ('What personal thing are you trying to do here?')
