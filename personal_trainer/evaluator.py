@@ -112,6 +112,7 @@ class personal_evaluator:
             sys.path.append(self.wkdir)
             from model import ANIModelAIM
             nn = ANIModelAIM(modules, aev_computer)
+            checkpoint = torch.load(self.checkpoint)
         else:
             nn = torchani.ANIModel(modules)
             checkpoint = torch.load(self.checkpoint)

@@ -284,7 +284,7 @@ class personal_trainer:
                 true_charges = properties[self.charge_type].to(self.device).float()
             if self.personal == True:
                 if self.charges ==True: 
-                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction,predicted_dipoles = model((species, coordinates))
+                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                # if self.dipole == True:
                #     raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                 if self.forces == True:
@@ -369,7 +369,7 @@ class personal_trainer:
                         #raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                     if self.charges == True:
                         true_charges = properties[self.charge_type].to(self.device)
-                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction, predicted_dipoles = model((species, coordinates))
+                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                     else:
                         raise AttributeError ('What personal thing are you trying to do here?')
                 else:
@@ -394,15 +394,15 @@ class personal_trainer:
                         loss = mtl(energy_loss, force_loss)
                     #if self.dipole == True:
                     #    raise NotImplementedError ('We currently arent doing dipoles.')
-                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
-                        loss = mtl(energy_loss, dipole_loss)
+                    #    dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
+                    #    loss = mtl(energy_loss, dipole_loss)
                     if self.charges ==True:
                         charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
-                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
-                        loss = mtl(energy_loss, charge_loss, dipole_loss)
+                        #dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
+                        loss = mtl(energy_loss, charge_loss)
                         training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
                         training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
-                        training_writer.add_scalar('dipole_loss', dipole_loss, LRscheduler.last_epoch)
+                        #training_writer.add_scalar('dipole_loss', dipole_loss, LRscheduler.last_epoch)
                 else:
                     energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
                     loss = energy_loss
