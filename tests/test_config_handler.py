@@ -5,7 +5,7 @@ import torch
 class TestConfigHandler(unittest.TestCase):
 
     def setUp(self):
-        self.config_handler = ConfigHandler('test_editor.ini')
+        self.config_handler = ConfigHandler('tests/test_editor.ini')
     
 
     def test_get_value(self):
