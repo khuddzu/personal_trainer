@@ -46,6 +46,10 @@ class ConfigHandler:
         -------
         any
             The value of the key, converted to the appropriate type.
+
+        Notes
+        -----
+        Activation in global section might be depricated.
         """
         value = self.config[section].get(key)
         try:

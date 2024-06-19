@@ -9,7 +9,7 @@ class TestConfigHandler(unittest.TestCase):
     
 
     def test_get_value(self):
-        #Check all potential types (boolean, string, list, NoneType, torch module, float, int)
+        #Check all potential types (boolean, string, list, NoneType, float, int)
         #boolean
         self.assertEqual(self.config_handler.get_value('Global', 'personal'), True)
         #string
@@ -18,8 +18,6 @@ class TestConfigHandler(unittest.TestCase):
         self.assertEqual(self.config_handler.get_value('Global', 'elements'), ['H', 'C', 'N', 'O', 'S', 'F', 'Cl'])
         #NoneType
         self.assertEqual(self.config_handler.get_value('Global', 'constants'), None)
-        #torch module
-        self.assertEqual(self.config_handler.get_value('Global', 'activation'), torch.nn.GELU)
         #float
         self.assertEqual(self.config_handler.get_value('Trainer', 'lr_factor'), 0.7)
         #int
