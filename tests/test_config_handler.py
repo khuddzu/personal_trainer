@@ -6,10 +6,8 @@ class TestConfigHandler(unittest.TestCase):
 
     def setUp(self):
         self.config_handler = ConfigHandler('test_editor.ini')
-"""
-    def test_get_device(self):
-        self.assertEqual(self.config_handler.get_device(), torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
-"""
+    
+
     def test_get_value(self):
         #Check all potential types (boolean, string, list, NoneType, torch module, float, int)
         #boolean
