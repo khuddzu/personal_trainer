@@ -19,7 +19,7 @@ class TestConfigHandler(unittest.TestCase):
         #NoneType
         self.assertEqual(self.config_handler.get_value('Global', 'constants'), None)
         #torch module
-        self.assertEqual(self.config_handler.get_value('Global', 'activation'), torch.nn.GELU())
+        self.assertEqual(self.config_handler.get_value('Global', 'activation'), torch.nn.GELU)
         #float
         self.assertEqual(self.config_handler.get_value('Trainer', 'lr_factor'), 0.7)
         #int
