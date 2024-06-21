@@ -36,7 +36,26 @@ jobs:
         path: coverage.xml
     - name: Comment coverage on PR
       if: github.event_name == 'pull_request'
-      uses: marocchino/sticky-pull-request-comment@v2
+      uses: actions/github-script@v6
       with:
-        path: coverage.xml
+        script: |
+          const fs = require('fs');
+          const coverage = fs.readFileSync('coverage.xml', 'utf8');
+          const match = coverage.match(/<coverage[^>]*line-rate="([^"]*)"/);
+          const lineRate = match ? (parseFloat(match[1]) * 100).toFixed(2) : null;
+          if (lineRate) {
+            const comment = `## Code Coverage Report\n\nCoverage: **${lineRate}%**`;
+            github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+          } else {
+            const comment = '## Code Coverage Report\n\nCoverage data not found.';
+            github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+          }
 
