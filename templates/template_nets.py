@@ -1,6 +1,5 @@
 import torch
 import torchani
-from scipy import ndimage
 #from torchani.repulsion import StandaloneRepulsionCalculator
 
 a0 = 0.529177249  # Bohr Radius

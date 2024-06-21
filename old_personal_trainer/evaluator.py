@@ -1,8 +1,7 @@
 import torch
 import torchani
-import os
 import sys
-from typing import Tuple, NamedTuple, Optional, Sequence
+from typing import Optional, Sequence
 from torch.nn import Module
 from copy import deepcopy
 
@@ -60,9 +59,9 @@ class personal_evaluator:
     def standard(self, dims: Sequence[int]):
         r"""Makes a standard ANI style atomic network"""
         if self.activation is None:
-            activation = torch.nn.CELU(0.1)
+            torch.nn.CELU(0.1)
         else:
-            activation = self.activation
+            self.activation
 
         dims = list(deepcopy(dims))
         layers = []

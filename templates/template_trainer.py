@@ -1,4 +1,3 @@
-import personal_trainer
 from personal_trainer import protocol 
 import torch
 

@@ -3,7 +3,6 @@ import torchani
 from pathlib import Path
 from torchani.transforms import AtomicNumbersToIndices, SubtractSAE
 from typing import Sequence
-from torch.nn import Module
 from copy import deepcopy
 import math
 import torch.utils.tensorboard
@@ -11,9 +10,7 @@ import os
 import shutil
 from .mtl_loss import MTLLoss
 import tqdm
-import datetime
 import configparser
-import sys
 
 class personal_trainer:
     """
@@ -144,9 +141,9 @@ class personal_trainer:
     def standard(self, dims: Sequence[int]):
         r"""Makes a standard ANI style atomic network"""
         if self.activation is None:
-            activation = torch.nn.GELU()
+            torch.nn.GELU()
         else:
-            activation = self.activation
+            self.activation
 
         dims = list(deepcopy(dims))
         layers = []
@@ -269,7 +266,6 @@ class personal_trainer:
         total_energy_mse = 0.0
         count = 0 
         charge_count = 0
-        dipole_count = 0 
         ### Doing dipole code by hand, adding to when charges is true for sake of time 
         if self.charges == True:
             total_charge_mse = 0.0
@@ -287,7 +283,7 @@ class personal_trainer:
                 if self.forces == True:
                     true_forces = properties['forces'].to(self.device).float()
                 if self.dipole == True:
-                    true_dipoles = properties['dipoles'].to(self.device).float()
+                    properties['dipoles'].to(self.device).float()
                 if self.charges == True:
                     true_charges = properties[self.charge_type].to(self.device).float()
                     #true_dipoles = properties['dipoles'].to(self.device).float()

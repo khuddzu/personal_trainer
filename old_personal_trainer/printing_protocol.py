@@ -1,10 +1,8 @@
 import torch
-from pprint import pprint
 import torchani
 from pathlib import Path
 from torchani.transforms import AtomicNumbersToIndices, SubtractSAE
 from typing import Sequence
-from torch.nn import Module
 from copy import deepcopy
 import math
 import torch.utils.tensorboard
@@ -12,7 +10,6 @@ import os
 import shutil
 from .mtl_loss import MTLLoss
 import tqdm
-import datetime
 import configparser
 import sys
 
@@ -163,9 +160,9 @@ class personal_trainer:
     def standard(self, dims: Sequence[int]):
         r"""Makes a standard ANI style atomic network"""
         if self.activation is None:
-            activation = torch.nn.GELU()
+            torch.nn.GELU()
         else:
-            activation = self.activation
+            self.activation
 
         dims = list(deepcopy(dims))
         layers = []

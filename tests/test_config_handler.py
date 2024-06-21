@@ -1,6 +1,5 @@
 import unittest
 from personal_trainer.config_handler import ConfigHandler
-import torch
 
 class TestConfigHandler(unittest.TestCase):
 
