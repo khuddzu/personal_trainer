@@ -1,5 +1,6 @@
 import configparser
 
+
 class ConfigHandler:
     def __init__(self, config_file):
         """
@@ -10,11 +11,13 @@ class ConfigHandler:
         config_file : str
             Path to the editor.ini model configuration file.
         """
-        self.config = configparser.ConfigParser(allow_no_value=True, inline_comment_prefixes="#")
+        self.config = configparser.ConfigParser(
+            allow_no_value=True, inline_comment_prefixes="#"
+        )
         self.config.read(config_file)
-        self.global_vars = self.config['Global']
-        self.trainer_vars = self.config['Trainer']
-        
+        self.global_vars = self.config["Global"]
+        self.trainer_vars = self.config["Trainer"]
+
     def get_device(self):
         """
         Retrieve the device specified in the configuration file.
@@ -23,13 +26,13 @@ class ConfigHandler:
         -------
         torch.device
             The device specified in the configuration file.
-        
+
         Notes
         -----
         This method might be removed in the future, and the device should be assigned within the user's code
         to avoid potential bugs.
         """
-        return eval(self.global_vars.get('device'))
+        return eval(self.global_vars.get("device"))
 
     def get_value(self, section, key):
         """
@@ -54,7 +57,7 @@ class ConfigHandler:
         value = self.config[section].get(key)
         try:
             return eval(value)  # Try to evaluate the value
-        except:
+        except BaseException:
             return value  # Return as string if evaluation fails
 
     def get_all_values(self):
@@ -73,4 +76,3 @@ class ConfigHandler:
             for key in self.config[section]:
                 config_dict[section][key] = self.get_value(section, key)
         return config_dict
-
