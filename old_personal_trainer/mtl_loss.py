@@ -3,8 +3,8 @@ import torch
 
 class MTLLoss(torch.nn.Module):
     """Args:
-            losses: a list of task specific loss terms
-            num_tasks: number of tasks
+    losses: a list of task specific loss terms
+    num_tasks: number of tasks
     """
 
     def __init__(self, num_tasks=2):
@@ -13,7 +13,7 @@ class MTLLoss(torch.nn.Module):
         self.log_sigma = torch.nn.Parameter(torch.zeros((num_tasks)))
 
     def get_precisions(self):
-        return 0.5 * torch.exp(- self.log_sigma) ** 2
+        return 0.5 * torch.exp(-self.log_sigma) ** 2
 
     def forward(self, *loss_terms):
         assert len(loss_terms) == self.num_tasks
@@ -22,6 +22,8 @@ class MTLLoss(torch.nn.Module):
         self.precisions = self.get_precisions()
 
         for task in range(self.num_tasks):
-            total_loss += self.precisions[task] * loss_terms[task] + self.log_sigma[task]
+            total_loss += (
+                self.precisions[task] * loss_terms[task] + self.log_sigma[task]
+            )
 
-        return total_loss#, self.precisions, loss_terms
+        return total_loss  # , self.precisions, loss_terms

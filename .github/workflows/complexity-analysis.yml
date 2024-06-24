@@ -1,0 +1,32 @@
+name: Complexity Analysis
+
+on:
+  workflow_dispatch:  # Allows manual triggering of the workflow
+  push:
+    branches:
+      - main
+
+jobs:
+  complexity:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: Install Radon
+      run: |
+        python -m pip install --upgrade pip
+        pip install radon torch
+    - name: Run Radon Complexity Analysis
+      run: |
+        radon cc personal_trainer -a > radon-report.txt
+    - name: Upload complexity analysis results
+      uses: actions/upload-artifact@v2
+      with:
+        name: complexity-report
+        path: radon-report.txt
+
