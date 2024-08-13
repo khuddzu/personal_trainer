@@ -17,8 +17,6 @@ class ConfigHandler:
             allow_no_value=True, inline_comment_prefixes="#"
         )
         self.config.read(config_file)
-        self.global_vars = self.config["Global"]
-        self.trainer_vars = self.config["Trainer"]
 
     def get_device(self):
         """
@@ -81,12 +79,15 @@ class ConfigHandler:
 
         global_config = config_dict['Global']
 
-        assert not (global_config['netlike1x'] and global_config['netlike2x']), "In configuration file, netlike1x and netlike2x cannot both be True"
+        netlike1x = global_config.get('netlike1x', False)
+        netlike2x = global_config.get('netlike2x', False)
+        
+        assert not (netlike1x and netlike2x), "Both netlike1x and netlike2x cannot be True"
 
-        if global_config['netlike1x']:
+        if netlike1x:
             global_config['constants'] = os.path.join(torchani_path, 'resources', 'ani-1x_8x', 'rHCNO-5.2R_16-3.5A_a4-8.params')
             global_config['elements'] = ['H', 'C', 'N', 'O']
-        elif global_config['netlike2x']:
+        elif netlike2x:
             global_config['constants'] = os.path.join(torchani_path, 'resources', 'ani-2x_8x', 'rHCNOSFCl-5.1R_16-3.5A_a8-4.params')
             global_config['elements'] = ['H', 'C', 'N', 'O', 'S', 'F', 'Cl']
         else:
