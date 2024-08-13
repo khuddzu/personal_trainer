@@ -284,9 +284,9 @@ class personal_trainer:
                 true_charges = properties[self.charge_type].to(self.device).float()
             if self.personal == True:
                 if self.charges ==True: 
-                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction,predicted_dipoles = model((species, coordinates))
-               # if self.dipole == True:
-               #     raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
+                    _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
+                if self.dipole == True:
+                    raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                 if self.forces == True:
                     raise NotImplementedError ('Currently there is no setup here for force calculation.')
             else:
@@ -301,19 +301,18 @@ class personal_trainer:
                 forces = -torch.autograd.grad(predicted_energies.sum(), coordinates)[0]
                 total_force_mse += (mse(true_forces, forces).sum(dim=(1, 2)) / (3 * num_atoms)).sum()
             if self.dipole == True:
-                #raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
+                raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                 total_dipole_mse += mse_sum(predicted_dipoles, true_dipoles).item()
             if self.charges == True:
-                total_charge_mse+=mse_sum(predicted_charges, true_charges).item()
-                #total_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
+                total_charge_mse += mse_sum(predicted_charges.sum(dim=1), true_charges.sum(dim=1)).item()
         energy_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_energy_mse / count))
         valdict['energy_rmse']=energy_rmse
         if self.forces == True:
             force_rmse = torchani.units.hartree2kcalmol(math.sqrt(total_force_mse / count))
             valdict['force_rmse']=force_rmse
         if self.dipole == True:
-            #raise NotImplementedError ("Currently we aren't doing dipoles")
-            dipole_rmse = torchani.units.ea2debye(math.sqrt(total_dipole_mse / count))
+            raise NotImplementedError ("Currently we aren't doing dipoles")
+            dipole_rmse = self.eA2debeye(math.sqrt(total_dipole_mse / count))
             valdict['dipole_rmse']=dipole_rmse
         if self.charges == True:
             charge_rmse = math.sqrt(total_charge_mse / count)
@@ -365,11 +364,10 @@ class personal_trainer:
                 ## Compute predicted ##
                 if self.personal == True:
                     if self.dipole == True:
-                        true_dipoles = properties['dipoles'].to(self.device)
-                        #raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
+                        raise NotImplementedError ('Currently there is no setup here for dipole calculation.')
                     if self.charges == True:
                         true_charges = properties[self.charge_type].to(self.device)
-                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction, predicted_dipoles = model((species, coordinates))
+                        _, predicted_energies, predicted_atomic_energies, predicted_charges, excess_charge, coulomb, correction = model((species, coordinates))
                     else:
                         raise AttributeError ('What personal thing are you trying to do here?')
                 else:
@@ -392,17 +390,15 @@ class personal_trainer:
                     if self.forces == True:
                         force_loss = (mse(true_forces, forces).sum(dim=(1, 2)) / (3.0 * num_atoms)).mean()
                         loss = mtl(energy_loss, force_loss)
-                    #if self.dipole == True:
-                    #    raise NotImplementedError ('We currently arent doing dipoles.')
+                    if self.dipole == True:
+                        raise NotImplementedError ('We currently arent doing dipoles.')
                         dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
                         loss = mtl(energy_loss, dipole_loss)
                     if self.charges ==True:
                         charge_loss = (mse(predicted_charges,true_charges).sum(dim=1)/num_atoms).mean()
-                        dipole_loss = (torch.sum((mse(predicted_dipoles, true_dipoles))/3.0, dim=1) / num_atoms.sqrt()).mean()
-                        loss = mtl(energy_loss, charge_loss, dipole_loss)
+                        loss = mtl(energy_loss, charge_loss)
                         training_writer.add_scalar('charge_loss', charge_loss, LRscheduler.last_epoch)
                         training_writer.add_scalar('energy_loss', energy_loss, LRscheduler.last_epoch)
-                        training_writer.add_scalar('dipole_loss', dipole_loss, LRscheduler.last_epoch)
                 else:
                     energy_loss = (mse(predicted_energies, true_energies) /num_atoms.sqrt()).mean()
                     loss = energy_loss
