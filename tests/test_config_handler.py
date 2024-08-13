@@ -5,7 +5,7 @@ from personal_trainer.config_handler import ConfigHandler
 class TestConfigHandler(unittest.TestCase):
 
     def setUp(self):
-        self.config_handler = ConfigHandler("tests/test_editor.ini")
+        self.config_handler = ConfigHandler("../templates/editor.ini")
 
     def test_convert(self):
         # Check all potential types (boolean, string, list, NoneType, float, int)
