@@ -63,15 +63,17 @@ class personal_trainer:
         self.num_tasks = tv.getint('num_tasks')
         self.train_file = tv.get('train_file')
         self.loss_beta = tv.getfloat('loss_beta')       
-        self.mtl_loss = tv.getboolean('mtl_loss')       
+        self.mtl_loss = tv.getboolean('mtl_loss')
+        self.constants = gv.get('constants')
         if self.netlike1x == True:
-            self.constants = '/data/khuddzu/torchani_sandbox/torchani/resources/ani-1x_8x/rHCNO-5.2R_16-3.5A_a4-8.params'
+            if self.constants == 'None':
+                self.constants = '/data/khuddzu/torchani_sandbox/torchani/resources/ani-1x_8x/rHCNO-5.2R_16-3.5A_a4-8.params'
             self.elements = ['H', 'C', 'N', 'O']
         elif self.netlike2x == True:
-            self.constants = '/data/khuddzu/torchani_sandbox/torchani/resources/ani-2x_8x/rHCNOSFCl-5.1R_16-3.5A_a8-4.params'
+            if self.constants == 'None':
+                self.constants = '/data/khuddzu/torchani_sandbox/torchani/resources/ani-2x_8x/rHCNOSFCl-5.1R_16-3.5A_a8-4.params'
             self.elements = ['H', 'C', 'N', 'O', 'S', 'F', 'Cl']
         else:
-            self.constants = eval(gv.get('constants'))
             self.elements = eval(gv.get('elements'))
 
     

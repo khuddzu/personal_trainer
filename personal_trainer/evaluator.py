@@ -114,7 +114,7 @@ class personal_evaluator:
             nn = ANIModelAIM(modules, aev_computer)
         else:
             nn = torchani.ANIModel(modules)
-            checkpoint = torch.load(self.checkpoint)
+        checkpoint = torch.load(self.checkpoint)
         nn.load_state_dict(checkpoint['model'],  strict=False)
         model = torch.nn.Sequential(nn).to(self.device)
         return model
